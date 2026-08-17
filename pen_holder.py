@@ -38,6 +38,12 @@ BOTTOM_CUBBY = True  # 최하단 선반 아래를 전면 개방 수납 포켓으
 FLANGE = 3.0        # 하단 개방 시 측벽 안쪽에 남기는 바닥판 레일 폭 (스커트 부착용)
 FILLET_R = 1.4      # 앞쪽 모서리 필렛 반경 (벽 3mm: 양쪽 합이 면 폭 미만이어야 함)
 
+# --- 측벽 타공 (장식·통기) ---
+PERFORATE = True    # 측벽 타공 패턴 on/off
+PERF_D = 4.5        # 구멍 지름
+PERF_PITCH = 8.0    # 구멍 간격 (스태거드/벌집 배열)
+PERF_MARGIN = 1.5   # 선반 슬래브 띠와의 최소 여유
+
 TAN = math.tan(math.radians(ANGLE))
 IN_D = D - WALL     # 선반이 걸치는 깊이 (앞면 y=0 ~ 뒷벽 안쪽 y=97)
 
@@ -152,6 +158,39 @@ def make_internal_thread_negative(length):
 # ---------------------------------------------------------------------------
 # 모듈 본체 (칸·창까지 포함, 스커트/클램프 제외 공통부)
 # ---------------------------------------------------------------------------
+def perforation_cuts(n_comp):
+    """측벽 타공용 X관통 원기둥 컴파운드 (없으면 None).
+
+    회피 조건이 y/z에만 걸리므로 양 측벽의 배치가 동일 — 관통 원기둥
+    하나가 두 벽을 함께 뚫고, 중간은 칸 내부 빈 공간이라 무해하다.
+    선반 슬래브 띠(± PERF_MARGIN), 캐치 창·상단 결합부(z>150),
+    하단(z<10), 앞뒤 가장자리(y 8~90 밖)는 비운다.
+    """
+    pitch = H / n_comp
+    r = PERF_D / 2.0
+    row_h = PERF_PITCH * 0.866  # 벌집 배열 행 간격
+    cyls = []
+    row = 0
+    z = 10.0 + r
+    while z + r <= 150.0:
+        y = 8.0 + (PERF_PITCH / 2.0 if row % 2 else 0.0)
+        while y + r <= 90.0:
+            clear = True
+            for k in range(n_comp):
+                ft = k * pitch + BOT_T + (IN_D - y) * TAN  # 선반 상면 z
+                if (z + r > ft - SHELF_T - PERF_MARGIN
+                        and z - r < ft + PERF_MARGIN):
+                    clear = False
+                    break
+            if clear:
+                cyls.append(Part.makeCylinder(
+                    r, W + 2.0, Vector(-1.0, y, z), Vector(1, 0, 0)))
+            y += PERF_PITCH
+        z += row_h
+        row += 1
+    return Part.makeCompound(cyls) if cyls else None
+
+
 def make_body(n_comp, bottom_open=False):
     """n_comp: 경사 칸 수 (칸 피치 = H / n_comp).
 
@@ -223,6 +262,12 @@ def make_body(n_comp, bottom_open=False):
         win = Part.makeBox(WALL + 1.0, WIN_W, WIN_H,
                            Vector(x0, HOOK_Y - WIN_W / 2.0, WIN_TOP - WIN_H))
         cuts.append(win)
+
+    # 측벽 타공 패턴
+    if PERFORATE:
+        holes = perforation_cuts(n_comp)
+        if holes:
+            cuts.append(holes)
 
     for c in cuts:
         body = body.cut(c)
@@ -403,6 +448,12 @@ def main():
                 all(r > 0 for r in fillets.values()) and fr_t > 0,
                 "module2 r=%.1f / module3 r=%.1f / tier1 r=%.1f"
                 % (fillets[2], fillets[3], fr_t))
+    # 타공 배치 확인 (부품별 구멍 수)
+    if PERFORATE:
+        counts = {n: len(perforation_cuts(n).Solids) for n in (2, 3)}
+        ok &= check("perforation", counts[2] > 40 and counts[3] > 40,
+                    "2칸 %d개 / 3칸 %d개 (관통 기준, 벽당 동일)"
+                    % (counts[2], counts[3]))
 
     print("== 내보내기 ==")
     parts = [("module%d" % n, modules[n]) for n in MODULE_SLOTS]
