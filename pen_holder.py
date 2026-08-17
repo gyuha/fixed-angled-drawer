@@ -34,6 +34,7 @@ SHELF_T = 4.0       # 선반 수직 두께 (참고 STL 실측 ≈4mm)
 ANGLE = 20.0        # 선반 경사각(도) — 참고 STL 법선 실측
 LIP = 6.0           # 선반 앞 끝 위 낮은 턱 높이
 BOTTOM_CUBBY = True  # 최하단 선반 아래를 전면 개방 수납 포켓으로 (앞턱 LIP 유지)
+FLANGE = 3.0        # 하단 개방 시 측벽 안쪽에 남기는 바닥판 레일 폭 (스커트 부착용)
 
 TAN = math.tan(math.radians(ANGLE))
 IN_D = D - WALL     # 선반이 걸치는 깊이 (앞면 y=0 ~ 뒷벽 안쪽 y=97)
@@ -122,7 +123,11 @@ def make_internal_thread_negative(length):
 # ---------------------------------------------------------------------------
 # 모듈 본체 (칸·창까지 포함, 스커트/클램프 제외 공통부)
 # ---------------------------------------------------------------------------
-def make_body():
+def make_body(bottom_open=False):
+    """bottom_open=True: 하단 포켓의 바닥판·앞턱을 제거해, 적층 시 아래
+    모듈의 최상단 칸과 공간이 이어진다 (적층 모듈용). tier1은 False로
+    바닥을 유지한다. 측벽 안쪽 FLANGE 폭 바닥판 레일은 남긴다 (측면
+    스커트가 매달리는 자리)."""
     body = Part.makeBox(W, D, H)
 
     cuts = []
@@ -166,6 +171,21 @@ def make_body():
                 ]
                 cuts.append(prism_yz(cubby, WALL, W - 2 * WALL))
 
+            if bottom_open:
+                # 바닥판 개방 (측벽 쪽 FLANGE 레일 존치)
+                opening = [
+                    (0.0, -0.5),
+                    (0.0, under_front),
+                    (y_end, BOT_T),
+                    (y_end, -0.5),
+                ]
+                cuts.append(prism_yz(opening, WALL + FLANGE,
+                                     W - 2 * (WALL + FLANGE)))
+                # 앞턱 제거 (레일 위 잔여 스터브 포함 전폭)
+                cuts.append(Part.makeBox(W - 2 * WALL, WALL + 0.6,
+                                         LIP + 0.6,
+                                         Vector(WALL, -0.5, BOT_T - 0.1)))
+
     # 상단 캐치 창 (양 측벽 관통)
     for x0 in (-0.5, W - WALL - 0.5):
         win = Part.makeBox(WALL + 1.0, WIN_W, WIN_H,
@@ -181,7 +201,7 @@ def make_body():
 # 적층 모듈 = 본체 + 바닥 스커트/스냅 후크
 # ---------------------------------------------------------------------------
 def make_module():
-    body = make_body()
+    body = make_body(bottom_open=True)
 
     sk_y0, sk_y1 = 8.0, D - WALL - CLEAR          # 스커트 y 범위 (측면)
     parts = []
