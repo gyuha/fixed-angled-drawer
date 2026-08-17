@@ -2,7 +2,7 @@
 """적층형 경사 필통 — 파라메트릭 FreeCAD 스크립트
 
 실행:  /Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd pen_holder.py
-산출:  output/pen_holder.FCStd, output/tier1.stl, output/module.stl, output/thumbscrew.stl
+산출:  output/pen_holder.FCStd, output/{tier1,module2,module3,thumbscrew}.stl
 
 부품 4종 (모듈 높이는 모두 170mm — 어떤 조합으로 쌓아도 호환)
   - module2    : 적층 모듈 2칸 (칸 피치 85mm, 긴 물건용)
@@ -21,7 +21,7 @@ import Part
 from FreeCAD import Vector
 
 # ---------------------------------------------------------------------------
-# 파라미터 (participant: reference/pen-holder-reference.stl 실측 근거)
+# 파라미터 (실측 근거: reference/pen-holder-reference.stl)
 # ---------------------------------------------------------------------------
 W = 80.0            # 모듈 폭 (요구 사양 8cm)
 D = 100.0           # 모듈 깊이 (요구 사양 10cm)
@@ -47,6 +47,8 @@ PERFORATE = True    # 측벽 타공 패턴 on/off
 PERF_D = 4.5        # 구멍 지름
 PERF_PITCH = 8.0    # 구멍 간격 (스태거드/벌집 배열)
 PERF_MARGIN = 1.5   # 선반 슬래브 띠와의 최소 여유
+
+LAYOUT_GAP = 30.0   # FCStd 문서 내 부품 나열 간격 (스크린샷용, STL 무관)
 
 TAN = math.tan(math.radians(ANGLE))
 IN_D = D - WALL     # 선반이 걸치는 깊이 (앞면 y=0 ~ 뒷벽 안쪽 y=97)
@@ -465,14 +467,37 @@ def main():
     print("== 내보내기 ==")
     parts = [("module%d" % n, modules[n]) for n in MODULE_SLOTS]
     parts += [("tier1", tier1), ("thumbscrew", screw)]
+    objs = {}
     for name, shape in parts:
         obj = doc.addObject("Part::Feature", name)
         obj.Shape = shape
+        objs[name] = obj
         path = os.path.join(OUT_DIR, name + ".stl")
         mesh = MeshPart.meshFromShape(Shape=shape, LinearDeflection=0.1,
                                       AngularDeflection=0.5)
-        mesh.write(path)  # 바이너리 STL
+        mesh.write(path)  # 바이너리 STL — 형상 원점 기준 (Placement 이전)
         print("STL:", path)
+
+    # 문서 배치 (스크린샷용) — STL 내보내기 이후에만 적용해 출력물은
+    # 원점을 유지한다. 위: 부품 나열, 오른쪽: 조립 상태.
+    print("== 배치 ==")
+    row = ["tier1"] + ["module%d" % n for n in MODULE_SLOTS] + ["thumbscrew"]
+    for i, name in enumerate(row):
+        objs[name].Placement = App.Placement(
+            Vector(i * (W + LAYOUT_GAP), 0, 0), App.Rotation())
+        print("  나열 %-11s x=%.0f" % (name, i * (W + LAYOUT_GAP)))
+
+    asm_x = len(row) * (W + LAYOUT_GAP) + LAYOUT_GAP
+    # 썸스크류: 나사부 시작(z=11)을 아래턱 밑면(z=-(OPENING+JAW_T))에 맞춤
+    screw_dz = -(OPENING + JAW_T) - 11.0
+    for name, shape, pos in (
+            ("asm_tier1", tier1, Vector(asm_x, 0, 0)),
+            ("asm_module3", modules[3], Vector(asm_x, 0, H)),
+            ("asm_screw", screw, Vector(asm_x + W / 2.0, HOLE_Y, screw_dz))):
+        o = doc.addObject("Part::Feature", name)
+        o.Shape = shape
+        o.Placement = App.Placement(pos, App.Rotation())
+        print("  조립 %-11s at (%.0f, %.0f, %.0f)" % (name, pos.x, pos.y, pos.z))
 
     doc.recompute()
     fcstd = os.path.join(OUT_DIR, "pen_holder.FCStd")
