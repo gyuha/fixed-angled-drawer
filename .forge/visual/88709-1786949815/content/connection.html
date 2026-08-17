@@ -1,0 +1,84 @@
+<h2>단(段) 사이 연결 방식을 골라주세요</h2>
+<p class="subtitle">단면도 기준: 회색 = 아래 모듈 상단, 파란색 = 위 모듈 하단. "높이 올려도 흔들리지 않게"가 목표입니다.</p>
+
+<div class="options">
+  <div class="option" data-choice="lip" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>립 &amp; 리세스 (얹기)</h3>
+      <svg viewBox="0 0 300 150" width="100%" style="max-width:320px;background:#fafafa;border-radius:8px">
+        <!-- lower module walls -->
+        <rect x="30" y="90" width="18" height="55" fill="#8a8a8a"/>
+        <rect x="252" y="90" width="18" height="55" fill="#8a8a8a"/>
+        <!-- upper module -->
+        <rect x="20" y="40" width="260" height="38" fill="#4a7fd4"/>
+        <!-- lip protruding down inside lower walls -->
+        <rect x="52" y="78" width="14" height="16" fill="#4a7fd4"/>
+        <rect x="234" y="78" width="14" height="16" fill="#4a7fd4"/>
+        <path d="M150 15 L150 35" stroke="#d44" stroke-width="3" marker-end="url(#ar1)"/>
+        <defs><marker id="ar1" markerWidth="8" markerHeight="8" refX="4" refY="7" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8 z" fill="#d44" transform="rotate(90 4 4)"/></marker></defs>
+        <text x="160" y="28" font-size="12" fill="#d44">위에서 그냥 얹음</text>
+      </svg>
+      <p>위 모듈 바닥의 테두리 턱이 아래 모듈 개구부 안쪽에 끼워짐. 조립·분리 가장 간단, 프린트도 쉬움. 대신 수직 방향 잠금이 없어 부딪히면 위 단이 들썩일 수 있음.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="dovetail" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>도브테일 슬라이드 (권장)</h3>
+      <svg viewBox="0 0 300 150" width="100%" style="max-width:320px;background:#fafafa;border-radius:8px">
+        <!-- lower module top with dovetail rails (front view cross-section) -->
+        <rect x="20" y="100" width="260" height="45" fill="#8a8a8a"/>
+        <polygon points="60,100 100,100 92,80 68,80" fill="#8a8a8a"/>
+        <polygon points="200,100 240,100 232,80 208,80" fill="#8a8a8a"/>
+        <!-- upper module bottom with matching grooves -->
+        <rect x="20" y="30" width="260" height="42" fill="#4a7fd4"/>
+        <polygon points="56,72 104,72 104,78 94,78 86,98 74,98 66,78 56,78" fill="#4a7fd4" opacity="0"/>
+        <path d="M150 76 L150 96" stroke="#d44" stroke-width="0"/>
+        <text x="108" y="93" font-size="12" fill="#d44">⟵ 뒤에서 앞으로 밀어 결합</text>
+      </svg>
+      <p>아래 모듈 윗면에 도브테일 레일 2줄, 위 모듈 바닥에 맞물리는 홈. 수평으로 밀어 끼우면 상하·좌우 모두 잠김 — 들어도 안 빠지고 흔들림 최소. 프린트 공차 조정 필요(첫 시험 인쇄 권장).</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="snap" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>스냅핏 클립 (딸깍)</h3>
+      <svg viewBox="0 0 300 150" width="100%" style="max-width:320px;background:#fafafa;border-radius:8px">
+        <rect x="30" y="95" width="18" height="50" fill="#8a8a8a"/>
+        <rect x="252" y="95" width="18" height="50" fill="#8a8a8a"/>
+        <!-- catch windows -->
+        <rect x="30" y="108" width="18" height="10" fill="#fafafa"/>
+        <rect x="252" y="108" width="18" height="10" fill="#fafafa"/>
+        <rect x="20" y="40" width="260" height="38" fill="#4a7fd4"/>
+        <!-- snap hooks -->
+        <path d="M40 78 L40 112 L50 108 L44 104 L44 78 Z" fill="#4a7fd4"/>
+        <path d="M260 78 L260 112 L250 108 L256 104 L256 78 Z" fill="#4a7fd4"/>
+        <path d="M150 15 L150 35" stroke="#d44" stroke-width="3"/>
+        <text x="160" y="28" font-size="12" fill="#d44">눌러서 딸깍 고정</text>
+      </svg>
+      <p>위에서 눌러 끼우면 후크가 걸려 고정. 조립 빠르고 단단하지만, 자주 분해하면 후크가 마모·파손될 수 있고 후크 프린트 방향을 타는 편.</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">덧붙일 말이 있으면 적어주세요 (선택)</h3>
+<div class="ask-input" style="display:flex;gap:8px;align-items:flex-start">
+  <textarea id="conn-note" rows="2" style="flex:1" placeholder="예: 분해는 거의 안 할 거예요 / 공차는 0.3mm로"></textarea>
+  <button class="mock-button" onclick="
+    window.brainstorm.send({type:'text', choice:'text:conn-note', field:'conn-note', value:document.getElementById('conn-note').value});
+    this.textContent='전송됨';
+  ">보내기</button>
+</div>
+
+<button class="mock-button" onclick="
+  var sel = Array.from(document.querySelectorAll('.option.selected, .card.selected'))
+                 .map(function(e){ return e.dataset.choice; });
+  var key = sel.join(',') || 'none';
+  if (this.dataset.sent === key) return;
+  this.dataset.sent = key;
+  window.brainstorm.send({type:'confirm', choice:'confirm:'+key, value:sel});
+  this.textContent='확정됨';
+">이걸로 확정</button>

@@ -1,0 +1,86 @@
+<h2>1단(맨 아래 필통)의 고정 방식을 골라주세요</h2>
+<p class="subtitle">측면 단면도 기준: 갈색 = 책상 상판, 회색 = 1단 필통, 빨간색 = 업로드하신 썸스크류(나사부 외경 18.5mm, 그대로 재사용).</p>
+
+<div class="options">
+  <div class="option" data-choice="clamp-integrated" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>일체형 책상 모서리 클램프 (권장)</h3>
+      <svg viewBox="0 0 320 180" width="100%" style="max-width:340px;background:#fafafa;border-radius:8px">
+        <!-- desk -->
+        <rect x="0" y="90" width="200" height="26" fill="#b98a5a"/>
+        <text x="10" y="107" font-size="12" fill="#fff">책상 상판</text>
+        <!-- pen holder body -->
+        <rect x="120" y="18" width="80" height="72" fill="#8a8a8a"/>
+        <text x="132" y="58" font-size="12" fill="#fff">1단 필통</text>
+        <!-- clamp arm: back wall extends down past desk edge, bottom jaw under desk -->
+        <rect x="200" y="18" width="14" height="140" fill="#8a8a8a"/>
+        <rect x="140" y="144" width="74" height="14" fill="#8a8a8a"/>
+        <!-- thumbscrew pressing up -->
+        <rect x="162" y="122" width="12" height="22" fill="#c43b3b"/>
+        <rect x="154" y="144" width="28" height="12" fill="#c43b3b"/>
+        <path d="M168 132 L168 120" stroke="#c43b3b" stroke-width="0"/>
+        <text x="188" y="172" font-size="12" fill="#c43b3b">나사가 상판 아래를 조임</text>
+      </svg>
+      <p>1단 본체 뒷면이 책상 모서리를 ㄷ자로 감싸고, 아래턱의 나사 구멍에 썸스크류를 돌려 상판을 물어 고정. 부품 수 최소(본체+나사), 가장 튼튼함. 단, 책상 모서리 근처에만 설치 가능.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="clamp-separate" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>분리형 클램프 + 바닥 소켓</h3>
+      <svg viewBox="0 0 320 180" width="100%" style="max-width:340px;background:#fafafa;border-radius:8px">
+        <rect x="0" y="90" width="200" height="26" fill="#b98a5a"/>
+        <text x="10" y="107" font-size="12" fill="#fff">책상 상판</text>
+        <rect x="60" y="18" width="80" height="66" fill="#8a8a8a"/>
+        <text x="72" y="55" font-size="12" fill="#fff">1단 필통</text>
+        <!-- separate clamp piece (blue) hooked on edge, plate slides into holder bottom -->
+        <rect x="60" y="84" width="140" height="8" fill="#4a7fd4"/>
+        <rect x="200" y="84" width="14" height="74" fill="#4a7fd4"/>
+        <rect x="150" y="144" width="64" height="14" fill="#4a7fd4"/>
+        <rect x="168" y="122" width="12" height="22" fill="#c43b3b"/>
+        <rect x="160" y="144" width="28" height="12" fill="#c43b3b"/>
+        <text x="8" y="140" font-size="12" fill="#4a7fd4">파란 클램프는 별도 부품,</text>
+        <text x="8" y="156" font-size="12" fill="#4a7fd4">필통 바닥 홈에 슬라이드 결합</text>
+      </svg>
+      <p>업로드하신 클램프 부품 개념 그대로 — 클램프가 별도 부품이고 1단 바닥의 홈에 끼움. 클램프 없이 그냥 올려두는 사용도 가능. 대신 부품 1개 추가, 결합부만큼 강성 손해.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="screw-feet" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>바닥 직결 나사 (책상에 구멍)</h3>
+      <svg viewBox="0 0 320 180" width="100%" style="max-width:340px;background:#fafafa;border-radius:8px">
+        <rect x="0" y="90" width="320" height="26" fill="#b98a5a"/>
+        <text x="10" y="107" font-size="12" fill="#fff">책상 상판</text>
+        <rect x="100" y="24" width="80" height="66" fill="#8a8a8a"/>
+        <text x="112" y="60" font-size="12" fill="#fff">1단 필통</text>
+        <rect x="120" y="90" width="8" height="34" fill="#c43b3b"/>
+        <rect x="152" y="90" width="8" height="34" fill="#c43b3b"/>
+        <text x="180" y="135" font-size="12" fill="#c43b3b">목재 나사로 직접 체결</text>
+      </svg>
+      <p>1단 바닥에 관통 구멍 2~4개를 내고 목재 나사로 책상에 직접 고정. 위치 자유롭고 가장 확실하지만 책상에 구멍이 남음. 업로드하신 썸스크류는 사용 안 함.</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">클램프 방식(A/B)이라면 — 책상 상판 두께를 알려주세요</h3>
+<div class="ask-input" style="display:flex;gap:8px;align-items:flex-start">
+  <textarea id="desk-thickness" rows="2" style="flex:1" placeholder="예: 25mm / 18~30mm 범위로 여유 있게"></textarea>
+  <button class="mock-button" onclick="
+    window.brainstorm.send({type:'text', choice:'text:desk-thickness', field:'desk-thickness', value:document.getElementById('desk-thickness').value});
+    this.textContent='전송됨';
+  ">보내기</button>
+</div>
+
+<button class="mock-button" onclick="
+  var sel = Array.from(document.querySelectorAll('.option.selected, .card.selected'))
+                 .map(function(e){ return e.dataset.choice; });
+  var key = sel.join(',') || 'none';
+  if (this.dataset.sent === key) return;
+  this.dataset.sent = key;
+  window.brainstorm.send({type:'confirm', choice:'confirm:'+key, value:sel});
+  this.textContent='확정됨';
+">이걸로 확정</button>
