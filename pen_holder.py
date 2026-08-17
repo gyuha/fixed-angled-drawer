@@ -4,9 +4,10 @@
 실행:  /Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd pen_holder.py
 산출:  output/pen_holder.FCStd, output/tier1.stl, output/module.stl, output/thumbscrew.stl
 
-부품 3종
-  - module     : 적층 모듈 (경사 2칸, 바닥 스냅 후크 + 상단 캐치 창)
-  - tier1      : 1단 (모듈 본체 + 뒷면 일체형 책상 클램프 + 암나사)
+부품 4종 (모듈 높이는 모두 170mm — 어떤 조합으로 쌓아도 호환)
+  - module2    : 적층 모듈 2칸 (칸 피치 85mm, 긴 물건용)
+  - module3    : 적층 모듈 3칸 (칸 피치 56.7mm, 촘촘한 분류용)
+  - tier1      : 1단 3칸 (본체 + 뒷면 일체형 책상 클램프 + 암나사)
   - thumbscrew : 클램프 조임 나사 (업로드 참고 나사와 호환 규격)
 
 좌표계: X=폭(0..80), Y=깊이(0=앞..100=뒤), Z=높이(0=바닥)
@@ -24,9 +25,9 @@ from FreeCAD import Vector
 # ---------------------------------------------------------------------------
 W = 80.0            # 모듈 폭 (요구 사양 8cm)
 D = 100.0           # 모듈 깊이 (요구 사양 10cm)
-H = 170.0           # 모듈 높이 (요구 사양 17cm)
-N_COMP = 2          # 경사 칸 수 (그릴링 확정)
-PITCH = H / N_COMP  # 칸 피치 85mm
+H = 170.0           # 모듈 높이 (요구 사양 17cm, 전 부품 공통 — 적층 호환)
+TIER1_SLOTS = 3     # 1단(바닥 모듈) 칸 수
+MODULE_SLOTS = (2, 3)  # 적층 모듈 변형별 칸 수 → module2 / module3
 
 WALL = 3.0          # 측벽·뒷벽·앞벽 두께 (참고 STL 실측 ≈3mm)
 BOT_T = 4.0         # 바닥판 두께 (참고 STL 실측 ≈4mm)
@@ -35,6 +36,7 @@ ANGLE = 20.0        # 선반 경사각(도) — 참고 STL 법선 실측
 LIP = 6.0           # 선반 앞 끝 위 낮은 턱 높이
 BOTTOM_CUBBY = True  # 최하단 선반 아래를 전면 개방 수납 포켓으로 (앞턱 LIP 유지)
 FLANGE = 3.0        # 하단 개방 시 측벽 안쪽에 남기는 바닥판 레일 폭 (스커트 부착용)
+FILLET_R = 1.4      # 앞쪽 모서리 필렛 반경 (벽 3mm: 양쪽 합이 면 폭 미만이어야 함)
 
 TAN = math.tan(math.radians(ANGLE))
 IN_D = D - WALL     # 선반이 걸치는 깊이 (앞면 y=0 ~ 뒷벽 안쪽 y=97)
@@ -53,13 +55,14 @@ WIN_TOP = H - 6.6   # 창 상단 z (스커트 결합 시 돌기 상면과 0.4 �
 HOOK_Y = 50.0       # 후크/창 중심의 y 위치
 
 # --- 클램프 (그릴링 확정: 일체형 ㄷ자, 개구 40mm) ---
+# FDM 출력 대응: 클램프 전체가 뒷면 평면(y=D)과 플러시 — 등을 대고
+# 평평하게 안착 출력. 뒷판은 안쪽(y = D-PLATE_T .. D)으로 들어간다.
 OPENING = 40.0      # 상판 물림 개구 (상판 18~25mm + 조임 여유)
-PLATE_T = 12.0      # 뒷판 두께
+PLATE_T = 12.0      # 뒷판 두께 (안쪽 방향)
 JAW_T = 14.0        # 아래턱 두께 (나사 4mm 피치 × 3.5산 물림)
 CLAMP_W = 60.0      # 클램프 폭 (중앙 정렬)
-JAW_REACH = 55.0    # 상판 아래로 들어가는 길이
-PLATE_UP = 40.0     # 뒷판이 모듈 뒷벽을 타고 올라가는 보강 높이
-HOLE_Y = 72.0       # 나사 구멍 중심 y (책상 모서리에서 28mm 안쪽)
+JAW_REACH = 55.0    # 뒷면에서 앞으로 뻗는 아래턱 길이
+HOLE_Y = 72.0       # 나사 구멍 중심 y (책상 물림면 y=D-PLATE_T 에서 16mm 안쪽)
 
 # --- 나사 (업로드 썸스크류 실측: OD18.5 / 골 12.7 / 피치 4 / 나사부 22) ---
 THR_PITCH = 4.0
@@ -90,6 +93,32 @@ def prism_xz(points, y0, dy):
     vecs.append(vecs[0])
     face = Part.Face(Part.Wire(Part.makePolygon(vecs)))
     return face.extrude(Vector(0, dy, 0))
+
+
+def fillet_front(shape, radius=FILLET_R):
+    """앞쪽(y < 벽두께) 모서리에 필렛. 손이 닿는 앞면을 부드럽게.
+
+    적층 연결부는 제외: z=0 이하(하단 레일·스커트) 또는 z=H(상단 테두리)에
+    닿는 모서리는 결합면이 평평해야 하므로 필렛하지 않는다. 부분 필렛이
+    불가능해 측벽 앞 세로 모서리(z 0~H 관통)도 함께 제외된다.
+
+    OCC 필렛은 모서리 조합에 따라 실패할 수 있어 반경을 낮추며 재시도하고,
+    끝내 실패하면 원본을 그대로 반환한다 (형상 안전 우선).
+    """
+    edges = [e for e in shape.Edges
+             if e.BoundBox.YMax < WALL + 0.01
+             and e.BoundBox.ZMin > 0.01
+             and e.BoundBox.ZMax < H - 0.01]
+    if not edges:
+        return shape, 0.0
+    for r in (radius, 1.0, 0.6):
+        try:
+            out = shape.makeFillet(r, edges)
+            if out.isValid():
+                return out, r
+        except Exception:
+            pass
+    return shape, 0.0
 
 
 def make_thread_ridge(root_r, crest_r, half_root, half_crest, pitch, length):
@@ -123,24 +152,27 @@ def make_internal_thread_negative(length):
 # ---------------------------------------------------------------------------
 # 모듈 본체 (칸·창까지 포함, 스커트/클램프 제외 공통부)
 # ---------------------------------------------------------------------------
-def make_body(bottom_open=False):
-    """bottom_open=True: 하단 포켓의 바닥판·앞턱을 제거해, 적층 시 아래
+def make_body(n_comp, bottom_open=False):
+    """n_comp: 경사 칸 수 (칸 피치 = H / n_comp).
+
+    bottom_open=True: 하단 포켓의 바닥판·앞턱을 제거해, 적층 시 아래
     모듈의 최상단 칸과 공간이 이어진다 (적층 모듈용). tier1은 False로
     바닥을 유지한다. 측벽 안쪽 FLANGE 폭 바닥판 레일은 남긴다 (측면
     스커트가 매달리는 자리)."""
+    pitch = H / n_comp
     body = Part.makeBox(W, D, H)
 
     cuts = []
-    for k in range(N_COMP):
-        b = k * PITCH
+    for k in range(n_comp):
+        b = k * pitch
         floor_back = b + BOT_T                    # 선반 상면 z (뒷벽 쪽, y=97)
         ff = floor_back + IN_D * TAN              # 선반 상면 z (앞면, y=0)
         lip_top = ff + LIP
         z_at_lip = ff - WALL * TAN                # y=WALL 에서의 선반 상면 z
 
-        if k < N_COMP - 1:
+        if k < n_comp - 1:
             # 천장 = 위 선반의 밑면
-            b_up = (k + 1) * PITCH
+            b_up = (k + 1) * pitch
             ceil_front = (b_up + BOT_T + IN_D * TAN) - SHELF_T
             ceil_back = (b_up + BOT_T) - SHELF_T
         else:
@@ -200,8 +232,8 @@ def make_body(bottom_open=False):
 # ---------------------------------------------------------------------------
 # 적층 모듈 = 본체 + 바닥 스커트/스냅 후크
 # ---------------------------------------------------------------------------
-def make_module():
-    body = make_body(bottom_open=True)
+def make_module(n_comp):
+    body = make_body(n_comp, bottom_open=True)
 
     sk_y0, sk_y1 = 8.0, D - WALL - CLEAR          # 스커트 y 범위 (측면)
     parts = []
@@ -247,12 +279,14 @@ def make_module():
 # 1단 = 본체 + 뒷면 일체형 클램프(암나사)
 # ---------------------------------------------------------------------------
 def make_tier1():
-    body = make_body()
+    body = make_body(TIER1_SLOTS)
 
+    # 클램프는 뒷면 평면(y=D)과 플러시 — 뒷판이 안쪽으로 들어가고,
+    # 본체 바닥(z=0)과의 접합 단면(CLAMP_W × PLATE_T)이 강성을 담당
     x0 = (W - CLAMP_W) / 2.0
-    plate = Part.makeBox(CLAMP_W, PLATE_T, OPENING + JAW_T + PLATE_UP,
-                         Vector(x0, D, -(OPENING + JAW_T)))
-    jaw = Part.makeBox(CLAMP_W, D + PLATE_T - (D - JAW_REACH), JAW_T,
+    plate = Part.makeBox(CLAMP_W, PLATE_T, OPENING + JAW_T,
+                         Vector(x0, D - PLATE_T, -(OPENING + JAW_T)))
+    jaw = Part.makeBox(CLAMP_W, JAW_REACH, JAW_T,
                        Vector(x0, D - JAW_REACH, -(OPENING + JAW_T)))
     clamp = plate.fuse(jaw)
 
@@ -318,31 +352,37 @@ def main():
     doc = App.newDocument("pen_holder")
 
     print("== 부품 생성 ==")
-    module = make_module()
-    tier1 = make_tier1()
+    modules = {}
+    fillets = {}
+    for n in MODULE_SLOTS:
+        modules[n], fillets[n] = fillet_front(make_module(n))
+    tier1, fr_t = fillet_front(make_tier1())
     screw = make_thumbscrew()
 
     ok = True
     print("== 검증 ==")
     # (a) 유효 솔리드
-    ok &= check("module.isValid", module.isValid())
+    for n in MODULE_SLOTS:
+        ok &= check("module%d.isValid" % n, modules[n].isValid())
     ok &= check("tier1.isValid", tier1.isValid())
     ok &= check("screw.isValid", screw.isValid())
 
     # (b) 바운딩박스 (테셀레이션 실측)
-    bb = TightBB(module)
-    ok &= check("module bbox XY", abs(bb.XLength - W) < 0.1
-                and abs(bb.YLength - D) < 0.1,
-                "X=%.2f Y=%.2f" % (bb.XLength, bb.YLength))
-    ok &= check("module body height", abs(bb.ZMax - H) < 0.05
-                and abs(bb.ZMin + SKIRT_D) < 0.05,
-                "Z=%.1f..%.1f (본체 170 + 스커트 12)" % (bb.ZMin, bb.ZMax))
+    for n in MODULE_SLOTS:
+        bb = TightBB(modules[n])
+        ok &= check("module%d bbox" % n, abs(bb.XLength - W) < 0.1
+                    and abs(bb.YLength - D) < 0.1
+                    and abs(bb.ZMax - H) < 0.05
+                    and abs(bb.ZMin + SKIRT_D) < 0.05,
+                    "X=%.2f Y=%.2f Z=%.1f..%.1f"
+                    % (bb.XLength, bb.YLength, bb.ZMin, bb.ZMax))
 
     bt = TightBB(tier1)
     ok &= check("tier1 bbox", abs(bt.XLength - W) < 0.1
-                and abs(bt.YMax - (D + PLATE_T)) < 0.1
+                and abs(bt.YMax - D) < 0.1
                 and abs(bt.ZMin + (OPENING + JAW_T)) < 0.1,
-                "Y max=%.1f Z=%.1f..%.1f" % (bt.YMax, bt.ZMin, bt.ZMax))
+                "Y max=%.1f(뒷면 플러시) Z=%.1f..%.1f"
+                % (bt.YMax, bt.ZMin, bt.ZMax))
 
     bs = TightBB(screw)
     # 플루트가 손잡이 가장자리를 깎아 실측 폭은 공칭 지름보다 약간 작다
@@ -358,10 +398,16 @@ def main():
     engage = BUMP_D - CLEAR
     ok &= check("snap fit", 1.0 < engage < 3.0 and WIN_H - BUMP_H >= 0.3,
                 "돌기 물림 %.2fmm, 창 상하 여유 %.1fmm" % (engage, WIN_H - BUMP_H))
+    # 앞쪽 필렛 적용 확인
+    ok &= check("front fillet",
+                all(r > 0 for r in fillets.values()) and fr_t > 0,
+                "module2 r=%.1f / module3 r=%.1f / tier1 r=%.1f"
+                % (fillets[2], fillets[3], fr_t))
 
     print("== 내보내기 ==")
-    for name, shape in (("module", module), ("tier1", tier1),
-                        ("thumbscrew", screw)):
+    parts = [("module%d" % n, modules[n]) for n in MODULE_SLOTS]
+    parts += [("tier1", tier1), ("thumbscrew", screw)]
+    for name, shape in parts:
         obj = doc.addObject("Part::Feature", name)
         obj.Shape = shape
         path = os.path.join(OUT_DIR, name + ".stl")
