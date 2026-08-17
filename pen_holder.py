@@ -33,7 +33,11 @@ WALL = 3.0          # 측벽·뒷벽·앞벽 두께 (참고 STL 실측 ≈3mm)
 BOT_T = 4.0         # 바닥판 두께 (참고 STL 실측 ≈4mm)
 SHELF_T = 4.0       # 선반 수직 두께 (참고 STL 실측 ≈4mm)
 ANGLE = 20.0        # 선반 경사각(도) — 참고 STL 법선 실측
-LIP = 6.0           # 선반 앞 끝 위 낮은 턱 높이
+LIP = 3.0           # 선반 앞 끝 위 낮은 턱 높이
+# 앞턱 뒷면을 수직 단차로 두면, 뒷면을 베드에 대고 출력할 때 아래를 향한
+# 평평한 천장이 되어 서포트가 필요하다. 기저 폭 LIP_BASE 만큼 램프로
+# 눕혀 자기지지 각도(베드 대비 45° 초과)를 만든다. LIP_BASE > LIP 필수.
+LIP_BASE = 8.0      # 앞턱 램프의 깊이 방향 기저 폭
 BOTTOM_CUBBY = True  # 최하단 선반 아래를 전면 개방 수납 포켓으로 (앞턱 LIP 유지)
 FLANGE = 3.0        # 하단 개방 시 측벽 안쪽에 남기는 바닥판 레일 폭 (스커트 부착용)
 FILLET_R = 1.4      # 앞쪽 모서리 필렛 반경 (벽 3mm: 양쪽 합이 면 폭 미만이어야 함)
@@ -207,7 +211,6 @@ def make_body(n_comp, bottom_open=False):
         floor_back = b + BOT_T                    # 선반 상면 z (뒷벽 쪽, y=97)
         ff = floor_back + IN_D * TAN              # 선반 상면 z (앞면, y=0)
         lip_top = ff + LIP
-        z_at_lip = ff - WALL * TAN                # y=WALL 에서의 선반 상면 z
 
         if k < n_comp - 1:
             # 천장 = 위 선반의 밑면
@@ -217,13 +220,13 @@ def make_body(n_comp, bottom_open=False):
         else:
             ceil_front = ceil_back = H            # 최상단 칸은 위로 개방
 
+        # 마지막 점 → 첫 점을 잇는 변이 앞턱 램프 (자기지지)
         poly = [
             (0.0, lip_top),
             (0.0, ceil_front),
             (IN_D, ceil_back),
             (IN_D, floor_back),
-            (WALL, z_at_lip),
-            (WALL, lip_top),
+            (LIP_BASE, ff - LIP_BASE * TAN),
         ]
         cuts.append(prism_yz(poly, WALL, W - 2 * WALL))
 
@@ -233,12 +236,12 @@ def make_body(n_comp, bottom_open=False):
             under_front = BOT_T + IN_D * TAN - SHELF_T   # y=0 선반 밑면 z
             y_end = IN_D - SHELF_T / TAN  # 선반 밑면이 바닥판 상면과 만나는 y
             if under_front > BOT_T + LIP + 2.0:
+                # 마지막 점 → 첫 점을 잇는 변이 앞턱 램프 (자기지지)
                 cubby = [
                     (0.0, BOT_T + LIP),
                     (0.0, under_front),
                     (y_end, BOT_T),
-                    (WALL, BOT_T),
-                    (WALL, BOT_T + LIP),
+                    (LIP_BASE, BOT_T),
                 ]
                 cuts.append(prism_yz(cubby, WALL, W - 2 * WALL))
 
@@ -252,9 +255,9 @@ def make_body(n_comp, bottom_open=False):
                 ]
                 cuts.append(prism_yz(opening, WALL + FLANGE,
                                      W - 2 * (WALL + FLANGE)))
-                # 앞턱 제거 (레일 위 잔여 스터브 포함 전폭)
-                cuts.append(Part.makeBox(W - 2 * WALL, WALL + 0.6,
-                                         LIP + 0.6,
+                # 앞턱 램프 제거 (레일 위 잔여 스터브 포함 전폭)
+                cuts.append(Part.makeBox(W - 2 * WALL, LIP_BASE + 0.6,
+                                         LIP + 0.7,
                                          Vector(WALL, -0.5, BOT_T - 0.1)))
 
     # 상단 캐치 창 (양 측벽 관통)
@@ -293,10 +296,9 @@ def make_module(n_comp):
             parts.append(Part.makeBox(SKIRT_T, yb - ya, SKIRT_D,
                                       Vector(x_out, ya, -SKIRT_D)))
 
-    # 뒷면 스커트
-    parts.append(Part.makeBox(W - 2 * (WALL + CLEAR), SKIRT_T, SKIRT_D,
-                              Vector(WALL + CLEAR, D - WALL - CLEAR - SKIRT_T,
-                                     -SKIRT_D)))
+    # 뒷면 스커트는 두지 않는다 — 뒷면을 베드에 대고 출력할 때 베드에서
+    # 3.25mm 떠 있는 평판(≈880mm²)이 되어 서포트를 부른다. 깊이 방향
+    # 위치 결정은 측면 스커트 뒤끝(y=96.75)이 아래 모듈 뒷벽에 닿아 담당.
 
     # 스냅 돌기 (바깥쪽 돌출, 하단 45° 챔퍼) — 좌/우
     xl = WALL + CLEAR                              # 좌측 스커트 바깥면
@@ -448,6 +450,11 @@ def main():
                 all(r > 0 for r in fillets.values()) and fr_t > 0,
                 "module2 r=%.1f / module3 r=%.1f / tier1 r=%.1f"
                 % (fillets[2], fillets[3], fr_t))
+    # 앞턱 램프 자기지지 각도 (뒷면을 베드에 대고 출력하는 기준)
+    # 프린트 높이 방향 = 모델 y, 측방 = 모델 z
+    ramp_deg = math.degrees(math.atan2(LIP_BASE, LIP + LIP_BASE * TAN))
+    ok &= check("lip self-support", ramp_deg > 45.0,
+                "앞턱 램프 %.1f° (베드 대비, 45° 초과 필요)" % ramp_deg)
     # 타공 배치 확인 (부품별 구멍 수)
     if PERFORATE:
         counts = {n: len(perforation_cuts(n).Solids) for n in (2, 3)}
