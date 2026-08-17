@@ -84,7 +84,8 @@ HOOK_Y = 50.0       # 후크/창 중심의 y 위치
 OPENING = 40.0      # 상판 물림 개구 (상판 18~25mm + 조임 여유)
 PLATE_T = 12.0      # 뒷판 두께 (안쪽 방향)
 JAW_T = 14.0        # 아래턱 두께 (나사 4mm 피치 × 3.5산 물림)
-CLAMP_W = 60.0      # 클램프 폭 (중앙 정렬)
+CLAMP_W = 40.0      # 클램프 폭 (중앙 정렬). 나사 구멍 Ø19.3 양옆에 10.3mm씩
+                    # 남는다 — 더 줄이면 아래 '구멍 주변 재료' 검증이 걸린다
 JAW_REACH = 45.0    # 뒷면에서 앞으로 뻗는 아래턱 길이 (나사 구멍 앞 7.4mm 여유)
 JAW_FILLET_R = 5.0  # 아래턱 앞 끝 좌우 모서리 필렛 반경
 HOLE_Y = 72.0       # 나사 구멍 중심 y (책상 물림면 y=D-PLATE_T 에서 16mm 안쪽)
@@ -561,6 +562,11 @@ def main():
     ok &= check("clamp reach", min_desk <= 15.0,
                 "상판 %.0f~%.0fmm 체결 가능 (턱 위 돌출 %.0fmm)"
                 % (max(min_desk, 0.0), OPENING, reach))
+    # 나사 구멍 주변 재료 — 클램프 폭을 더 줄이면 여기가 먼저 위험해진다
+    side = CLAMP_W / 2.0 - (THR_OD / 2.0 + THR_CLEAR)
+    ok &= check("clamp hole margin", side >= 8.0,
+                "구멍(Ø%.1f) 양옆 재료 %.1fmm (최소 8mm)"
+                % (THR_OD + 2 * THR_CLEAR, side))
 
     # (c) 나사-암나사 정합 (구성값 검산)
     ok &= check("thread fit", THR_CLEAR >= 0.3,
