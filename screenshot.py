@@ -17,6 +17,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DOC = os.path.join(HERE, "output", "pen_holder.FCStd")
 SIZE = (1600, 1200)
 
+# 부품 색상 — 색은 GUI 속성(ViewObject)이라 헤드리스 pen_holder.py 에서는
+# 지정할 수 없다. 여기서 칠하고 문서를 저장해 FCStd 에도 남긴다.
+SCREW_COLOR = (0.80, 0.11, 0.11)   # 썸스크류: 빨강
+
 # 뷰 이름 → (표시 그룹, 카메라 메서드)
 # 그룹은 객체 이름 접두어로 고른다 — 부품이 늘어도 이 목록을 고칠 일이 없다.
 #   "asm_" → assembly (조립 상태) / "exp_" → exploded (뚜껑 분해)
@@ -35,6 +39,15 @@ def shoot():
     Gui.updateGui()
     Gui.ActiveDocument = Gui.getDocument(doc.Name)
     view = Gui.activeDocument().activeView()
+    Gui.Selection.clearSelection()     # 선택 하이라이트(초록)가 찍히지 않게
+
+    # 썸스크류만 빨강 (나열·조립 뷰의 두 인스턴스 모두)
+    for o in doc.Objects:
+        if "screw" in o.Name.lower():
+            o.ViewObject.ShapeColor = SCREW_COLOR
+            o.ViewObject.DiffuseColor = [SCREW_COLOR]
+            print("색상:", o.Name, "→ 빨강")
+
     for name, group, cam in VIEWS:
         for o in doc.Objects:
             if o.Name.startswith("asm_"):
@@ -50,6 +63,10 @@ def shoot():
         path = os.path.join(HERE, "output", "shot-%s.png" % name)
         view.saveImage(path, SIZE[0], SIZE[1], "White")
         print("PNG:", path)
+    for o in doc.Objects:                 # 저장 전 모든 부품을 다시 보이게
+        o.ViewObject.Visibility = True
+    doc.save()                            # 색상을 FCStd 에 보존
+    print("FCStd 저장:", DOC)
     App.closeDocument(doc.Name)
     Gui.getMainWindow().close()
 

@@ -84,14 +84,19 @@ OPENING = 40.0      # 상판 물림 개구 (상판 18~25mm + 조임 여유)
 PLATE_T = 12.0      # 뒷판 두께 (안쪽 방향)
 JAW_T = 14.0        # 아래턱 두께 (나사 4mm 피치 × 3.5산 물림)
 CLAMP_W = 60.0      # 클램프 폭 (중앙 정렬)
-JAW_REACH = 55.0    # 뒷면에서 앞으로 뻗는 아래턱 길이
+JAW_REACH = 45.0    # 뒷면에서 앞으로 뻗는 아래턱 길이 (나사 구멍 앞 7.4mm 여유)
+JAW_FILLET_R = 5.0  # 아래턱 앞 끝 좌우 모서리 필렛 반경
 HOLE_Y = 72.0       # 나사 구멍 중심 y (책상 물림면 y=D-PLATE_T 에서 16mm 안쪽)
 
 # --- 나사 (업로드 썸스크류 실측: OD18.5 / 골 12.7 / 피치 4 / 나사부 22) ---
 THR_PITCH = 4.0
 THR_OD = 18.5
 THR_ROOT = 12.7
-THR_LEN = 22.0
+# 나사부 길이: 참고 나사는 22mm였으나 그 길이로는 아래턱 위로 10mm만
+# 올라와 두께 30mm 미만 상판에 닿지 않았다. 25mm 연장해 5~40mm 상판을
+# 모두 물 수 있게 한다 (아래 '체결 가능 상판 두께' 검증 참고).
+THR_LEN = 47.0
+SHAFT_LEN = THR_LEN + 2.0    # 나사산 양끝이 묻히도록 샤프트를 조금 길게
 KNOB_D = 32.6       # 손잡이 지름 (실측)
 KNOB_H = 10.0       # 손잡이 높이 (실측)
 THR_CLEAR = 0.4     # 암나사 반경 공차
@@ -406,6 +411,18 @@ def make_tier1():
                        Vector(x0, D - JAW_REACH, -(OPENING + JAW_T)))
     clamp = plate.fuse(jaw)
 
+    # 아래턱 앞 끝 좌우 모서리 필렛 (손이 닿는 자리) — 나사산 절삭 전에
+    # 적용한다. 헬리컬 구멍이 생긴 뒤에는 OCC 필렛이 불안정하다.
+    jaw_y = D - JAW_REACH
+    ends = [e for e in clamp.Edges
+            if e.BoundBox.YMax < jaw_y + 0.01
+            and e.BoundBox.XLength < 0.01
+            and e.BoundBox.ZLength > 1.0]
+    if ends:
+        filleted = clamp.makeFillet(JAW_FILLET_R, ends)
+        if filleted.isValid():
+            clamp = filleted
+
     # 암나사 (아래턱 관통, 축 Z)
     neg = make_internal_thread_negative(JAW_T + 2.0)
     neg.translate(Vector(W / 2.0, HOLE_Y, -(OPENING + JAW_T) - 1.0))
@@ -428,9 +445,9 @@ def make_thumbscrew():
         knob = knob.cut(c)
 
     # 샤프트(골 원통)가 나사산의 코어를 겸함
-    shaft = Part.makeCylinder(THR_ROOT / 2.0, 24.0, Vector(0, 0, KNOB_H))
+    shaft = Part.makeCylinder(THR_ROOT / 2.0, SHAFT_LEN, Vector(0, 0, KNOB_H))
     # 리지 z 범위 ≈ -1.4 .. (길이-1)+1.4 — 아래 끝은 손잡이 속,
-    # 위 끝은 샤프트 끝(z=34) 안쪽에 묻히도록 길이 -1, +11 배치
+    # 위 끝은 샤프트 끝 안쪽에 묻히도록 길이 -1, +KNOB_H+1 배치
     ridge = make_thread_ridge(THR_ROOT / 2.0, THR_OD / 2.0, 1.4, 0.6,
                               THR_PITCH, THR_LEN - 1.0)
     ridge.translate(Vector(0, 0, KNOB_H + 1.0))
@@ -535,8 +552,14 @@ def main():
     bs = TightBB(screw)
     # 플루트가 손잡이 가장자리를 깎아 실측 폭은 공칭 지름보다 약간 작다
     ok &= check("screw bbox", KNOB_D - 1.0 < bs.XLength <= KNOB_D + 0.1
-                and abs(bs.ZLength - 34.0) < 0.2,
+                and abs(bs.ZLength - (KNOB_H + SHAFT_LEN)) < 0.2,
                 "D=%.1f (공칭 %.1f) H=%.1f" % (bs.XLength, KNOB_D, bs.ZLength))
+    # 체결 가능 상판 두께 — 나사가 아래턱 위로 나오는 만큼이 물림 범위다
+    reach = SHAFT_LEN - JAW_T          # 턱 위 최대 돌출
+    min_desk = OPENING - reach         # 물 수 있는 가장 얇은 상판
+    ok &= check("clamp reach", min_desk <= 15.0,
+                "상판 %.0f~%.0fmm 체결 가능 (턱 위 돌출 %.0fmm)"
+                % (max(min_desk, 0.0), OPENING, reach))
 
     # (c) 나사-암나사 정합 (구성값 검산)
     ok &= check("thread fit", THR_CLEAR >= 0.3,
