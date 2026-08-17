@@ -132,6 +132,8 @@ FreeCAD 파이썬 스크립트 하나(`pen_holder.py`)가 모든 부품을 파�
 ```
 pen_holder.py          모델 생성·검증·내보내기 (파라메트릭, 단일 소스)
 screenshot.py          FCStd → PNG 스크린샷 (FreeCAD GUI 필요)
+LICENSE                코드 라이센스 (MIT)
+LICENSE-MODELS         도면·모델 라이센스 (CC BY-SA 4.0)
 output/
   tier1.stl            1단 3칸 + 클램프
   module2.stl          적층 모듈 2칸
@@ -147,6 +149,22 @@ output-8cm/            폭 80mm 초기 버전 산출물 (보관용)
 `output-8cm/`은 폭 80mm였던 초기 버전의 산출물입니다. 실제로 출력해 보니 폭이 넓어 70mm로 줄였고, 8cm판이 필요하면 `W = 80.0`으로 되돌려 재생성하면 됩니다.
 
 `output/*.stl`은 모두 원점 기준으로 내보내므로 슬라이서에 그대로 올리면 됩니다. `pen_holder.FCStd`의 부품 배치는 문서 안에서만 적용된 것이라 STL 좌표에 영향이 없습니다.
+
+## 라이센스
+
+저장소에 성격이 다른 두 가지가 있어 각각 다른 라이센스를 적용합니다.
+
+| 대상 | 라이센스 | 파일 |
+|------|----------|------|
+| 소스 코드 (`pen_holder.py`, `screenshot.py`) | **MIT** | [LICENSE](LICENSE) |
+| 도면·모델 (`output/`, `output-8cm/`의 STL·FCStd·3MF·렌더) | **CC BY-SA 4.0** | [LICENSE-MODELS](LICENSE-MODELS) |
+
+출력해서 쓰시는 것, 팔거나 개조하시는 것 모두 자유입니다. 다만 모델을 **변형해 배포할 때는 출처를 밝히고 동일한 CC BY-SA 4.0으로 공개**해 주세요.
+
+```
+"fixed-angled-drawer" by gyuha, licensed under CC BY-SA 4.0.
+https://github.com/gyuha/fixed-angled-drawer
+```
 
 ## 참고 뷰
 
