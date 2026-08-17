@@ -2,12 +2,15 @@
 """적층형 경사 필통 — 파라메트릭 FreeCAD 스크립트
 
 실행:  /Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd pen_holder.py
-산출:  output/pen_holder.FCStd, output/{tier1,module2,module3,thumbscrew}.stl
+산출:  output/pen_holder.FCStd,
+       output/{tier1,module2,module3,topmodule,lid,thumbscrew}.stl
 
-부품 4종 (모듈 높이는 모두 170mm — 어떤 조합으로 쌓아도 호환)
+부품 6종 (적층 모듈 높이는 모두 170mm — 어떤 조합으로 쌓아도 호환)
   - module2    : 적층 모듈 2칸 (칸 피치 85mm, 긴 물건용)
   - module3    : 적층 모듈 3칸 (칸 피치 56.7mm, 촘촘한 분류용)
   - tier1      : 1단 3칸 (본체 + 뒷면 일체형 책상 클램프 + 암나사)
+  - topmodule  : 마감 모듈 (바닥 없음·천장 일체, 높이 56.7mm)
+  - lid        : 평판 뚜껑 (모듈 바닥과 동일한 스냅 스커트 — 2칸/3칸 모듈용)
   - thumbscrew : 클램프 조임 나사 (업로드 참고 나사와 호환 규격)
 
 좌표계: X=폭(0..80), Y=깊이(0=앞..100=뒤), Z=높이(0=바닥)
@@ -23,7 +26,7 @@ from FreeCAD import Vector
 # ---------------------------------------------------------------------------
 # 파라미터 (실측 근거: reference/pen-holder-reference.stl)
 # ---------------------------------------------------------------------------
-W = 80.0            # 모듈 폭 (요구 사양 8cm)
+W = 70.0            # 모듈 폭 (8cm 시제품이 넓어 7cm로 축소, 8cm판은 output-8cm/)
 D = 100.0           # 모듈 깊이 (요구 사양 10cm)
 H = 170.0           # 모듈 높이 (요구 사양 17cm, 전 부품 공통 — 적층 호환)
 TIER1_SLOTS = 3     # 1단(바닥 모듈) 칸 수
@@ -47,6 +50,14 @@ PERFORATE = True    # 측벽 타공 패턴 on/off
 PERF_D = 4.5        # 구멍 지름
 PERF_PITCH = 8.0    # 구멍 간격 (스태거드/벌집 배열)
 PERF_MARGIN = 1.5   # 선반 슬래브 띠와의 최소 여유
+
+# --- 마감용 최상단 모듈 + 별도 뚜껑 ---
+# 마감 모듈(topmodule)은 천장이 일체로 붙은 한 부품이고, 전체 높이는
+# 3칸 모듈의 한 칸 높이(H/3). 별도 뚜껑(lid)은 모듈 바닥과 똑같은 스냅
+# 스커트를 써서 2칸·3칸 모듈 위에 그대로 덮인다.
+TOP_H = H / 3.0     # 마감 모듈 전체 높이 (천장 포함)
+LID_T = 3.0         # 천장판·뚜껑판 두께
+TOP_CEIL = TOP_H - LID_T     # 마감 모듈 천장 밑면 높이
 
 LAYOUT_GAP = 30.0   # FCStd 문서 내 부품 나열 간격 (스크린샷용, STL 무관)
 
@@ -107,7 +118,7 @@ def prism_xz(points, y0, dy):
     return face.extrude(Vector(0, dy, 0))
 
 
-def fillet_front(shape, radius=FILLET_R):
+def fillet_front(shape, radius=FILLET_R, height=H):
     """앞쪽(y < 벽두께) 모서리에 필렛. 손이 닿는 앞면을 부드럽게.
 
     적층 연결부는 제외: z=0 이하(하단 레일·스커트) 또는 z=H(상단 테두리)에
@@ -120,7 +131,7 @@ def fillet_front(shape, radius=FILLET_R):
     edges = [e for e in shape.Edges
              if e.BoundBox.YMax < WALL + 0.01
              and e.BoundBox.ZMin > 0.01
-             and e.BoundBox.ZMax < H - 0.01]
+             and e.BoundBox.ZMax < height - 0.01]
     if not edges:
         return shape, 0.0
     for r in (radius, 1.0, 0.6):
@@ -164,21 +175,24 @@ def make_internal_thread_negative(length):
 # ---------------------------------------------------------------------------
 # 모듈 본체 (칸·창까지 포함, 스커트/클램프 제외 공통부)
 # ---------------------------------------------------------------------------
-def perforation_cuts(n_comp):
+def perforation_cuts(n_comp, height=H, z_max=None):
     """측벽 타공용 X관통 원기둥 컴파운드 (없으면 None).
+
+    n_comp=0 이면 선반이 없는 것으로 보고 회피 조건에서 제외한다.
 
     회피 조건이 y/z에만 걸리므로 양 측벽의 배치가 동일 — 관통 원기둥
     하나가 두 벽을 함께 뚫고, 중간은 칸 내부 빈 공간이라 무해하다.
     선반 슬래브 띠(± PERF_MARGIN), 캐치 창·상단 결합부(z>150),
     하단(z<10), 앞뒤 가장자리(y 8~90 밖)는 비운다.
     """
-    pitch = H / n_comp
+    pitch = height / n_comp if n_comp else 0.0
     r = PERF_D / 2.0
     row_h = PERF_PITCH * 0.866  # 벌집 배열 행 간격
     cyls = []
     row = 0
     z = 10.0 + r
-    while z + r <= 150.0:
+    z_top = height - 20.0 if z_max is None else z_max
+    while z + r <= z_top:
         y = 8.0 + (PERF_PITCH / 2.0 if row % 2 else 0.0)
         while y + r <= 90.0:
             clear = True
@@ -195,6 +209,51 @@ def perforation_cuts(n_comp):
         z += row_h
         row += 1
     return Part.makeCompound(cyls) if cyls else None
+
+
+def catch_windows(height):
+    """상단 캐치 창 (양 측벽 관통) — 위 모듈/뚜껑의 스냅 돌기가 걸리는 자리."""
+    win_top = height - 6.6
+    return [Part.makeBox(WALL + 1.0, WIN_W, WIN_H,
+                         Vector(x0, HOOK_Y - WIN_W / 2.0, win_top - WIN_H))
+            for x0 in (-0.5, W - WALL - 0.5)]
+
+
+def snap_skirt_parts():
+    """바닥 스냅 스커트 + 돌기 (z = -SKIRT_D .. 0). 모듈·뚜껑 공용."""
+    sk_y0, sk_y1 = 8.0, D - WALL - CLEAR
+    parts = []
+
+    # 측면 스커트 (후크 탭 슬롯 제외하고 세 토막)
+    for x_out in (WALL + CLEAR, W - WALL - CLEAR - SKIRT_T):
+        y_slot0 = HOOK_Y - HOOK_W / 2.0 - HOOK_GAP
+        y_slot1 = HOOK_Y + HOOK_W / 2.0 + HOOK_GAP
+        for ya, yb in ((sk_y0, y_slot0),
+                       (HOOK_Y - HOOK_W / 2.0, HOOK_Y + HOOK_W / 2.0),
+                       (y_slot1, sk_y1)):
+            parts.append(Part.makeBox(SKIRT_T, yb - ya, SKIRT_D,
+                                      Vector(x_out, ya, -SKIRT_D)))
+
+    # 뒷면 스커트는 두지 않는다 — 뒷면을 베드에 대고 출력할 때 베드에서
+    # 3.25mm 떠 있는 평판(≈880mm²)이 되어 서포트를 부른다. 깊이 방향
+    # 위치 결정은 측면 스커트 뒤끝(y=96.75)이 아래 모듈 뒷벽에 닿아 담당.
+
+    # 스냅 돌기 (바깥쪽 돌출, 하단 45° 챔퍼) — 좌/우
+    xl = WALL + CLEAR                              # 좌측 스커트 바깥면
+    parts.append(prism_xz([
+        (xl, -SKIRT_D),
+        (xl - BUMP_D, -SKIRT_D + BUMP_D),          # 45° 진입 챔퍼
+        (xl - BUMP_D, -SKIRT_D + BUMP_H),
+        (xl, -SKIRT_D + BUMP_H),
+    ], HOOK_Y - HOOK_W / 2.0, HOOK_W))
+    xr = W - WALL - CLEAR                          # 우측 스커트 바깥면
+    parts.append(prism_xz([
+        (xr, -SKIRT_D),
+        (xr + BUMP_D, -SKIRT_D + BUMP_D),
+        (xr + BUMP_D, -SKIRT_D + BUMP_H),
+        (xr, -SKIRT_D + BUMP_H),
+    ], HOOK_Y - HOOK_W / 2.0, HOOK_W))
+    return parts
 
 
 def make_body(n_comp, bottom_open=False):
@@ -262,15 +321,11 @@ def make_body(n_comp, bottom_open=False):
                                          LIP + 0.7,
                                          Vector(WALL, -0.5, BOT_T - 0.1)))
 
-    # 상단 캐치 창 (양 측벽 관통)
-    for x0 in (-0.5, W - WALL - 0.5):
-        win = Part.makeBox(WALL + 1.0, WIN_W, WIN_H,
-                           Vector(x0, HOOK_Y - WIN_W / 2.0, WIN_TOP - WIN_H))
-        cuts.append(win)
+    cuts += catch_windows(H)
 
     # 측벽 타공 패턴
     if PERFORATE:
-        holes = perforation_cuts(n_comp)
+        holes = perforation_cuts(n_comp, H)
         if holes:
             cuts.append(holes)
 
@@ -284,44 +339,56 @@ def make_body(n_comp, bottom_open=False):
 # ---------------------------------------------------------------------------
 def make_module(n_comp):
     body = make_body(n_comp, bottom_open=True)
-
-    sk_y0, sk_y1 = 8.0, D - WALL - CLEAR          # 스커트 y 범위 (측면)
-    parts = []
-
-    # 측면 스커트 (후크 탭 슬롯 제외하고 세 토막)
-    for x_out in (WALL + CLEAR, W - WALL - CLEAR - SKIRT_T):
-        y_slot0 = HOOK_Y - HOOK_W / 2.0 - HOOK_GAP
-        y_slot1 = HOOK_Y + HOOK_W / 2.0 + HOOK_GAP
-        for ya, yb in ((sk_y0, y_slot0),
-                       (HOOK_Y - HOOK_W / 2.0, HOOK_Y + HOOK_W / 2.0),
-                       (y_slot1, sk_y1)):
-            parts.append(Part.makeBox(SKIRT_T, yb - ya, SKIRT_D,
-                                      Vector(x_out, ya, -SKIRT_D)))
-
-    # 뒷면 스커트는 두지 않는다 — 뒷면을 베드에 대고 출력할 때 베드에서
-    # 3.25mm 떠 있는 평판(≈880mm²)이 되어 서포트를 부른다. 깊이 방향
-    # 위치 결정은 측면 스커트 뒤끝(y=96.75)이 아래 모듈 뒷벽에 닿아 담당.
-
-    # 스냅 돌기 (바깥쪽 돌출, 하단 45° 챔퍼) — 좌/우
-    xl = WALL + CLEAR                              # 좌측 스커트 바깥면
-    bump_l = prism_xz([
-        (xl, -SKIRT_D),
-        (xl - BUMP_D, -SKIRT_D + (BUMP_D)),        # 45° 진입 챔퍼
-        (xl - BUMP_D, -SKIRT_D + BUMP_H),
-        (xl, -SKIRT_D + BUMP_H),
-    ], HOOK_Y - HOOK_W / 2.0, HOOK_W)
-    xr = W - WALL - CLEAR                          # 우측 스커트 바깥면
-    bump_r = prism_xz([
-        (xr, -SKIRT_D),
-        (xr + BUMP_D, -SKIRT_D + BUMP_D),
-        (xr + BUMP_D, -SKIRT_D + BUMP_H),
-        (xr, -SKIRT_D + BUMP_H),
-    ], HOOK_Y - HOOK_W / 2.0, HOOK_W)
-    parts += [bump_l, bump_r]
-
-    for p in parts:
+    for p in snap_skirt_parts():
         body = body.fuse(p)
     return body
+
+
+# ---------------------------------------------------------------------------
+# 마감용 최상단 모듈 (천장 일체) + 별도 평판 뚜껑
+# ---------------------------------------------------------------------------
+def make_top_module():
+    """스택 맨 위를 마감하는 모듈 — 천장 일체, 바닥 없음.
+
+    바닥이 없어 아래 모듈의 맨 위 칸과 공간이 그대로 이어지고, 그
+    공간을 자신의 천장이 덮어 마감한다. 위에 아무것도 올라가지 않으므로
+    상단 캐치 창은 두지 않는다. 바닥 스냅 스커트로 아래 모듈에 결합하고,
+    측벽 안쪽 FLANGE 레일만 남겨 스커트를 매단다. 전체 높이 TOP_H.
+    """
+    body = Part.makeBox(W, D, TOP_H)
+
+    cuts = [
+        # 레일 위 ~ 천장 밑면: 벽 사이 개방 (뒷벽은 IN_D 까지만 파서 남김)
+        Part.makeBox(W - 2 * WALL, IN_D, TOP_CEIL - BOT_T,
+                     Vector(WALL, 0, BOT_T)),
+        # 레일 높이 구간: 가운데만 뚫어 측벽 쪽 레일을 남김
+        Part.makeBox(W - 2 * (WALL + FLANGE), IN_D, BOT_T + 0.5,
+                     Vector(WALL + FLANGE, 0, -0.5)),
+    ]
+
+    if PERFORATE:
+        # 선반 없음 → 회피 조건 없음. 천장 3mm 아래까지만 타공
+        holes = perforation_cuts(0, TOP_H, z_max=TOP_CEIL - 3.0)
+        if holes:
+            cuts.append(holes)
+
+    for c in cuts:
+        body = body.cut(c)
+    for p in snap_skirt_parts():
+        body = body.fuse(p)
+    return body
+
+
+def make_lid():
+    """평판 뚜껑 — 모듈 바닥과 동일한 스냅 스커트를 그대로 쓴다.
+
+    판은 z=0..LID_T, 스커트는 z<0 이므로 2칸·3칸 모듈 위에 그대로
+    덮여 딸깍 걸린다. 출력 시에는 판이 베드에 닿도록 뒤집는다.
+    """
+    lid = Part.makeBox(W, D, LID_T)
+    for p in snap_skirt_parts():
+        lid = lid.fuse(p)
+    return lid
 
 
 # ---------------------------------------------------------------------------
@@ -406,6 +473,9 @@ def main():
     for n in MODULE_SLOTS:
         modules[n], fillets[n] = fillet_front(make_module(n))
     tier1, fr_t = fillet_front(make_tier1())
+    # 윗면은 마감면(결합면 아님)이라 앞 모서리도 필렛 대상에 포함
+    topmod, fr_top = fillet_front(make_top_module(), height=TOP_H + 1.0)
+    lid = make_lid()          # 평판이라 필렛 없음 (윗면이 마감면)
     screw = make_thumbscrew()
 
     ok = True
@@ -414,6 +484,8 @@ def main():
     for n in MODULE_SLOTS:
         ok &= check("module%d.isValid" % n, modules[n].isValid())
     ok &= check("tier1.isValid", tier1.isValid())
+    ok &= check("topmodule.isValid", topmod.isValid())
+    ok &= check("lid.isValid", lid.isValid())
     ok &= check("screw.isValid", screw.isValid())
 
     # (b) 바운딩박스 (테셀레이션 실측)
@@ -433,6 +505,33 @@ def main():
                 "Y max=%.1f(뒷면 플러시) Z=%.1f..%.1f"
                 % (bt.YMax, bt.ZMin, bt.ZMax))
 
+    bp = TightBB(topmod)
+    ok &= check("topmodule bbox", abs(bp.XLength - W) < 0.1
+                and abs(bp.YLength - D) < 0.1
+                and abs(bp.ZMax - TOP_H) < 0.05
+                and abs(bp.ZMin + SKIRT_D) < 0.05,
+                "X=%.2f Y=%.2f Z=%.1f..%.1f" % (bp.XLength, bp.YLength,
+                                                bp.ZMin, bp.ZMax))
+    bl = TightBB(lid)
+    ok &= check("lid bbox", abs(bl.XLength - W) < 0.1
+                and abs(bl.YLength - D) < 0.1
+                and abs(bl.ZMax - LID_T) < 0.05,
+                "X=%.2f Y=%.2f Z=%.1f..%.1f" % (bl.XLength, bl.YLength,
+                                                bl.ZMin, bl.ZMax))
+    ok &= check("topmodule height", abs(TOP_H - H / 3.0) < 0.01,
+                "마감 모듈 높이 %.1fmm = 3칸 모듈 1칸(%.1fmm)"
+                % (TOP_H, H / 3.0))
+    # 마감 모듈: 바닥은 열려 있고(아래 칸과 연결) 천장은 막혀 있어야 한다
+    floored = topmod.isInside(Vector(W / 2.0, D / 2.0, BOT_T / 2.0), 0.01, True)
+    railed = topmod.isInside(Vector(WALL + FLANGE / 2.0, D / 2.0, BOT_T / 2.0),
+                             0.01, True)
+    ceiled = topmod.isInside(Vector(W / 2.0, D / 2.0, TOP_H - LID_T / 2.0),
+                             0.01, True)
+    ok &= check("topmodule open bottom / closed top",
+                (not floored) and railed and ceiled,
+                "바닥 개방=%s, 레일 존치=%s, 천장 일체=%s"
+                % (not floored, railed, ceiled))
+
     bs = TightBB(screw)
     # 플루트가 손잡이 가장자리를 깎아 실측 폭은 공칭 지름보다 약간 작다
     ok &= check("screw bbox", KNOB_D - 1.0 < bs.XLength <= KNOB_D + 0.1
@@ -449,9 +548,10 @@ def main():
                 "돌기 물림 %.2fmm, 창 상하 여유 %.1fmm" % (engage, WIN_H - BUMP_H))
     # 앞쪽 필렛 적용 확인
     ok &= check("front fillet",
-                all(r > 0 for r in fillets.values()) and fr_t > 0,
-                "module2 r=%.1f / module3 r=%.1f / tier1 r=%.1f"
-                % (fillets[2], fillets[3], fr_t))
+                all(r > 0 for r in fillets.values()) and fr_t > 0
+                and fr_top > 0,
+                "module2 r=%.1f / module3 r=%.1f / tier1 r=%.1f / top r=%.1f"
+                % (fillets[2], fillets[3], fr_t, fr_top))
     # 앞턱 램프 자기지지 각도 (뒷면을 베드에 대고 출력하는 기준)
     # 프린트 높이 방향 = 모델 y, 측방 = 모델 z
     ramp_deg = math.degrees(math.atan2(LIP_BASE, LIP + LIP_BASE * TAN))
@@ -466,7 +566,8 @@ def main():
 
     print("== 내보내기 ==")
     parts = [("module%d" % n, modules[n]) for n in MODULE_SLOTS]
-    parts += [("tier1", tier1), ("thumbscrew", screw)]
+    parts += [("tier1", tier1), ("topmodule", topmod), ("lid", lid),
+              ("thumbscrew", screw)]
     objs = {}
     for name, shape in parts:
         obj = doc.addObject("Part::Feature", name)
@@ -481,7 +582,8 @@ def main():
     # 문서 배치 (스크린샷용) — STL 내보내기 이후에만 적용해 출력물은
     # 원점을 유지한다. 위: 부품 나열, 오른쪽: 조립 상태.
     print("== 배치 ==")
-    row = ["tier1"] + ["module%d" % n for n in MODULE_SLOTS] + ["thumbscrew"]
+    row = (["tier1"] + ["module%d" % n for n in MODULE_SLOTS]
+           + ["topmodule", "lid", "thumbscrew"])
     for i, name in enumerate(row):
         objs[name].Placement = App.Placement(
             Vector(i * (W + LAYOUT_GAP), 0, 0), App.Rotation())
@@ -490,10 +592,17 @@ def main():
     asm_x = len(row) * (W + LAYOUT_GAP) + LAYOUT_GAP
     # 썸스크류: 나사부 시작(z=11)을 아래턱 밑면(z=-(OPENING+JAW_T))에 맞춤
     screw_dz = -(OPENING + JAW_T) - 11.0
+    asm2_x = asm_x + W + LAYOUT_GAP          # 뚜껑 사용 예 (2칸 모듈 + 뚜껑)
     for name, shape, pos in (
             ("asm_tier1", tier1, Vector(asm_x, 0, 0)),
             ("asm_module3", modules[3], Vector(asm_x, 0, H)),
-            ("asm_screw", screw, Vector(asm_x + W / 2.0, HOLE_Y, screw_dz))):
+            ("asm_topmodule", topmod, Vector(asm_x, 0, 2 * H)),
+            ("asm_screw", screw, Vector(asm_x + W / 2.0, HOLE_Y, screw_dz)),
+            ("asm_module2", modules[2], Vector(asm2_x, 0, 0)),
+            ("asm_lid", lid, Vector(asm2_x, 0, H)),
+            # 분해 뷰 — 뚜껑을 띄워 별개 부품임이 드러나게
+            ("exp_module2", modules[2], Vector(asm2_x + W + LAYOUT_GAP, 0, 0)),
+            ("exp_lid", lid, Vector(asm2_x + W + LAYOUT_GAP, 0, H + 35.0))):
         o = doc.addObject("Part::Feature", name)
         o.Shape = shape
         o.Placement = App.Placement(pos, App.Rotation())

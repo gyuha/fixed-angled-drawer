@@ -17,16 +17,16 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DOC = os.path.join(HERE, "output", "pen_holder.FCStd")
 SIZE = (1600, 1200)
 
-# 뷰 이름 → (표시할 객체 이름 목록, 카메라 메서드)
+# 뷰 이름 → (표시 그룹, 카메라 메서드)
+# 그룹은 객체 이름 접두어로 고른다 — 부품이 늘어도 이 목록을 고칠 일이 없다.
+#   "asm_" → assembly (조립 상태) / "exp_" → exploded (뚜껑 분해)
+#   그 외   → parts (부품 나열)
 VIEWS = [
-    ("parts-axo", ["tier1", "module2", "module3", "thumbscrew"],
-     "viewAxonometric"),
-    ("assembly-axo", ["asm_tier1", "asm_module3", "asm_screw"],
-     "viewAxonometric"),
-    ("assembly-front", ["asm_tier1", "asm_module3", "asm_screw"],
-     "viewFront"),
-    ("assembly-right", ["asm_tier1", "asm_module3", "asm_screw"],
-     "viewRight"),
+    ("parts-axo", "parts", "viewAxonometric"),
+    ("assembly-axo", "assembly", "viewAxonometric"),
+    ("assembly-front", "assembly", "viewFront"),
+    ("assembly-right", "assembly", "viewRight"),
+    ("lid-open", "exploded", "viewAxonometric"),
 ]
 
 
@@ -35,9 +35,15 @@ def shoot():
     Gui.updateGui()
     Gui.ActiveDocument = Gui.getDocument(doc.Name)
     view = Gui.activeDocument().activeView()
-    for name, visible, cam in VIEWS:
+    for name, group, cam in VIEWS:
         for o in doc.Objects:
-            o.ViewObject.Visibility = o.Name in visible
+            if o.Name.startswith("asm_"):
+                g = "assembly"
+            elif o.Name.startswith("exp_"):
+                g = "exploded"
+            else:
+                g = "parts"
+            o.ViewObject.Visibility = (g == group)
         getattr(view, cam)()
         Gui.SendMsgToActiveView("ViewFit")
         Gui.updateGui()
