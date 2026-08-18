@@ -46,6 +46,25 @@ BOTTOM_CUBBY = True  # 최하단 선반 아래를 전면 개방 수납 포켓으
 FLANGE = 3.0        # 하단 개방 시 측벽 안쪽에 남기는 바닥판 레일 폭 (스커트 부착용)
 FILLET_R = 1.4      # 앞쪽 모서리 필렛 반경 (벽 3mm: 양쪽 합이 면 폭 미만이어야 함)
 
+# --- 서랍 변형 (tier1-drawer) + 서랍 부품 ---
+DRAWER_CLEAR = 0.4      # 서랍 좌우 각 공차
+DRAWER_V_CLEAR = 0.5    # 서랍 상하 합 공차
+DRAWER_BACK_GAP = 2.0   # 밀어 넣었을 때 뒷벽 앞 여유 (깊이 정지)
+DRAWER_WALL = 2.5       # 서랍 측·뒷벽 두께
+DRAWER_BOT_T = 3.0      # 서랍 바닥 두께
+DRAWER_FRONT_T = 3.0    # 서랍 앞판 두께
+PULL_W = 30.0           # 앞판 손가락 개구 폭
+PULL_H = 16.0           # 앞판 손가락 개구 높이 (중앙 배치 — 모멘트 0)
+PULL_FILLET_R = 1.0     # 개구 모서리 라운딩 — 손가락이 걸리는 자리
+# 레일: 홈은 서랍 측벽, 리브는 본체 측벽 (서랍이 파이는 쪽)
+RAIL_GROOVE_D = 1.4     # 서랍 측벽 홈 깊이
+RAIL_GROOVE_H = 3.0     # 서랍 측벽 홈 높이
+RAIL_RIB_D = 1.0        # 본체 측벽 리브 돌출
+RAIL_RIB_H = 2.4        # 본체 측벽 리브 높이
+RAIL_PAD_T = 1.0        # 홈 뒤 서랍 벽을 안쪽으로 덧대는 보강 두께
+RAIL_START = 0.2        # 레일 시작 위치 (깊이 비율) — 앞에서 이만큼 들어간 뒤부터
+                        # 앞면에 레일이 보이지 않고, 깊이의 4/5 구간이 안내된다
+
 # --- 측벽 타공 (장식·통기) ---
 PERFORATE = True    # 측벽 타공 패턴 on/off
 PERF_D = 4.5        # 구멍 지름
@@ -138,7 +157,8 @@ def fillet_front(shape, radius=FILLET_R, height=H):
     edges = [e for e in shape.Edges
              if e.BoundBox.YMax < WALL + 0.01
              and e.BoundBox.ZMin > 0.01
-             and e.BoundBox.ZMax < height - 0.01]
+             and e.BoundBox.ZMax < height - 0.01
+             and e.Length > 2.0 * radius]
     if not edges:
         return shape, 0.0
     for r in (radius, 1.0, 0.6):
@@ -182,7 +202,8 @@ def make_internal_thread_negative(length):
 # ---------------------------------------------------------------------------
 # 모듈 본체 (칸·창까지 포함, 스커트/클램프 제외 공통부)
 # ---------------------------------------------------------------------------
-def perforation_cuts(n_comp, height=H, z_max=None):
+def perforation_cuts(n_comp, height=H, z_max=None, z_min=10.0,
+                     bay_ceiling=None):
     """측벽 타공용 X관통 원기둥 컴파운드 (없으면 None).
 
     n_comp=0 이면 선반이 없는 것으로 보고 회피 조건에서 제외한다.
@@ -197,7 +218,7 @@ def perforation_cuts(n_comp, height=H, z_max=None):
     row_h = PERF_PITCH * 0.866  # 벌집 배열 행 간격
     cyls = []
     row = 0
-    z = 10.0 + r
+    z = z_min + r
     z_top = height - 20.0 if z_max is None else z_max
     while z + r <= z_top:
         y = 8.0 + (PERF_PITCH / 2.0 if row % 2 else 0.0)
@@ -209,6 +230,11 @@ def perforation_cuts(n_comp, height=H, z_max=None):
                         and z - r < ft + PERF_MARGIN):
                     clear = False
                     break
+            if clear and bay_ceiling is not None:
+                # 서랍 구간(경사 천장 아래)은 서랍이 지나가는 면이라 비운다
+                c0, slope = bay_ceiling
+                if z - r < c0 - slope * y:
+                    clear = False
             if clear:
                 cyls.append(Part.makeCylinder(
                     r, W + 2.0, Vector(-1.0, y, z), Vector(1, 0, 0)))
@@ -263,7 +289,63 @@ def snap_skirt_parts():
     return parts
 
 
-def make_body(n_comp, bottom_open=False):
+def drawer_bay_geometry():
+    """서랍 구간(bay)과 쐐기 서랍의 치수를 한 곳에서 계산한다.
+
+    서랍은 경사 천장을 따라가는 쐐기형이라 앞이 높고 뒤가 낮다. 천장과
+    서랍 상면의 기울기가 같으므로 인출·삽입 중 간섭이 없다(빼면 여유가
+    오히려 늘어난다). 반환: dict.
+    """
+    pitch = H / TIER1_SLOTS
+    ceil_front = (pitch + BOT_T + IN_D * TAN) - SHELF_T   # 앞쪽 천장 z
+    ceil_back = (pitch + BOT_T) - SHELF_T                 # 뒷쪽 천장 z
+    dd = IN_D - DRAWER_BACK_GAP
+    h_front = (ceil_front - DRAWER_V_CLEAR) - BOT_T       # 서랍 앞 높이(서랍 기준)
+    d = dict(
+        bay_bot=BOT_T, ceil_front=ceil_front, ceil_back=ceil_back,
+        bay_w=W - 2 * WALL, bay_d=IN_D,
+        drawer_w=(W - 2 * WALL) - 2 * DRAWER_CLEAR,
+        drawer_d=dd,
+        h_front=h_front,
+        h_rear=h_front - TAN * dd,                        # 서랍 뒤 높이
+        rail_y0=RAIL_START * dd,                          # 레일 시작 y (앞에서 안쪽)
+    )
+    return d
+
+
+_SHELL = {}
+_DRAWER_INFO = {}
+
+
+def drawer_shell():
+    """개구·홈·보강 없는 서랍 껍데기 (무게중심 계산용, 캐시)."""
+    if "s" not in _SHELL:
+        g = drawer_bay_geometry()
+        dw, dd = g["drawer_w"], g["drawer_d"]
+        outer = prism_yz([(0.0, 0.0), (0.0, g["h_front"]),
+                          (dd, g["h_rear"]), (dd, 0.0)], 0.0, dw)
+        inner = prism_yz([
+            (DRAWER_FRONT_T, DRAWER_BOT_T),
+            (DRAWER_FRONT_T, g["h_front"] + 1.0),
+            (dd - DRAWER_WALL, g["h_rear"] + 1.0),
+            (dd - DRAWER_WALL, DRAWER_BOT_T),
+        ], DRAWER_WALL, dw - 2 * DRAWER_WALL)
+        _SHELL["s"] = outer.cut(inner)
+    return _SHELL["s"]
+
+
+def rail_z_local():
+    """레일·손가락 개구를 놓을 높이 = 빈 서랍의 실제 무게중심 높이.
+
+    당김점·무게중심·레일이 한 선에 놓여 기울임 모멘트가 0이 된다.
+    솔리드에서 직접 구하므로 형상이 바뀌면 자동으로 따라온다.
+    """
+    sh = drawer_shell()
+    solid = sh.Solids[0] if sh.Solids else sh   # 불리언 결과가 컴파운드로 감싸짐
+    return solid.CenterOfMass.z
+
+
+def make_body(n_comp, bottom_open=False, drawer_bay=False):
     """n_comp: 경사 칸 수 (칸 피치 = H / n_comp).
 
     bottom_open=True: 하단 포켓의 바닥판·앞턱을 제거해, 적층 시 아래
@@ -274,7 +356,18 @@ def make_body(n_comp, bottom_open=False):
     body = Part.makeBox(W, D, H)
 
     cuts = []
+    g = drawer_bay_geometry() if drawer_bay else None
     for k in range(n_comp):
+        if drawer_bay and k == 0:
+            # 최하단 칸 → 쐐기 서랍 구간. 경사 선반·앞턱·하단 포켓을 한 번에
+            # 제거해 바닥부터 경사 천장까지가 그대로 서랍 공간이 된다.
+            cuts.append(prism_yz([
+                (0.0, g["bay_bot"]),
+                (0.0, g["ceil_front"]),
+                (IN_D, g["ceil_back"]),
+                (IN_D, g["bay_bot"]),
+            ], WALL, W - 2 * WALL))
+            continue
         b = k * pitch
         floor_back = b + BOT_T                    # 선반 상면 z (뒷벽 쪽, y=97)
         ff = floor_back + IN_D * TAN              # 선반 상면 z (앞면, y=0)
@@ -330,14 +423,23 @@ def make_body(n_comp, bottom_open=False):
 
     cuts += catch_windows(H)
 
-    # 측벽 타공 패턴
+    # 측벽 타공 패턴 (서랍 구간은 서랍이 닿는 면이므로 제외)
     if PERFORATE:
-        holes = perforation_cuts(n_comp, H)
+        bay = (g["ceil_front"] + 3.0, TAN) if drawer_bay else None
+        holes = perforation_cuts(n_comp, H, bay_ceiling=bay)
         if holes:
             cuts.append(holes)
 
     for c in cuts:
         body = body.cut(c)
+
+    if drawer_bay:
+        # 레일 리브 — 앞에서 rail_y0 만큼 들어간 지점부터 뒤까지 (앞면에 보이지 않음)
+        rz = g["bay_bot"] + rail_z_local() - RAIL_RIB_H / 2.0
+        ry = g["rail_y0"]
+        for rx in (WALL, W - WALL - RAIL_RIB_D):
+            body = body.fuse(Part.makeBox(RAIL_RIB_D, IN_D - ry, RAIL_RIB_H,
+                                          Vector(rx, ry, rz)))
     return body
 
 
@@ -401,8 +503,8 @@ def make_lid():
 # ---------------------------------------------------------------------------
 # 1단 = 본체 + 뒷면 일체형 클램프(암나사)
 # ---------------------------------------------------------------------------
-def make_tier1():
-    body = make_body(TIER1_SLOTS)
+def make_tier1(drawer=False):
+    body = make_body(TIER1_SLOTS, drawer_bay=drawer)
 
     # 클램프는 뒷면 평면(y=D)과 플러시 — 뒷판이 안쪽으로 들어가고,
     # 본체 바닥(z=0)과의 접합 단면(CLAMP_W × PLATE_T)이 강성을 담당
@@ -436,6 +538,63 @@ def make_tier1():
 # ---------------------------------------------------------------------------
 # 썸스크류 (업로드본 호환 규격)
 # ---------------------------------------------------------------------------
+def make_drawer():
+    """서랍 부품 — 경사 천장을 따라가는 쐐기 상자.
+
+    앞판이 개구 전체 높이를 덮고 위가 열려 있어 경사 공간까지 쓴다.
+    측벽에는 레일 **홈**을 파고(리브는 본체 쪽), 홈은 앞에서 rail_y0 만큼
+    들어간 지점부터 뒤끝까지만 있어 앞면에 드러나지 않는다. 홈 뒤쪽 벽은
+    안쪽 보강 패드로 두께를 회복한다. 손가락 개구와 홈은 모두 빈 서랍의
+    무게중심 높이에 둔다 (당김 시 기울임 모멘트 0).
+
+    출력은 바닥을 베드에 — 위가 열려 있고 상면 경사도 재료가 끝나는
+    방향이라 서포트가 필요 없다.
+    """
+    g = drawer_bay_geometry()
+    dw, dd = g["drawer_w"], g["drawer_d"]
+    rz = rail_z_local()
+
+    box = drawer_shell()
+
+    # 손가락 개구 — 앞판 관통, 무게중심 높이 중앙
+    ell = Part.Ellipse(Vector(0, 0, 0), PULL_W / 2.0, PULL_H / 2.0)
+    pull = Part.Face(Part.Wire(ell.toShape())).extrude(
+        Vector(0, 0, DRAWER_FRONT_T + 2.0))
+    pull.rotate(Vector(0, 0, 0), Vector(1, 0, 0), -90.0)   # 압출 방향 → +Y
+    pull.translate(Vector(dw / 2.0, -1.0, rz))
+    box = box.cut(pull)
+
+    # 개구 모서리 라운딩 — 3mm 판을 그냥 뚫으면 각진 모서리가 손가락을
+    # 파고든다. 실제로 힘이 걸리는 안쪽 모서리까지 함께 굴린다.
+    pull_edges = [e for e in box.Edges
+                  if e.BoundBox.YMax <= DRAWER_FRONT_T + 0.01
+                  and abs(e.BoundBox.Center.x - dw / 2.0) < PULL_W / 2.0 + 0.5
+                  and abs(e.BoundBox.Center.z - rz) < PULL_H / 2.0 + 0.5
+                  and e.Length > 2.0 * PULL_FILLET_R]
+    _DRAWER_INFO["pull_fillet"] = 0.0
+    for r in (PULL_FILLET_R, 0.6, 0.4):
+        try:
+            out = box.makeFillet(r, pull_edges)
+            if out.isValid():
+                box = out
+                _DRAWER_INFO["pull_fillet"] = r
+                break
+        except Exception:
+            pass
+
+    ry = g["rail_y0"]
+    # 홈 뒤 벽 두께 회복용 안쪽 보강 패드 (홈보다 위아래·앞뒤로 넉넉히)
+    pad_h = RAIL_GROOVE_H + 4.0
+    for px in (DRAWER_WALL, dw - DRAWER_WALL - RAIL_PAD_T):
+        box = box.fuse(Part.makeBox(RAIL_PAD_T, dd - ry - DRAWER_WALL, pad_h,
+                                    Vector(px, ry, rz - pad_h / 2.0)))
+    # 레일 홈 — 뒤끝은 열어 리브가 빠져나가게(+1), 앞끝은 막아 앞면에 안 보임
+    for gx in (0.0, dw - RAIL_GROOVE_D):
+        box = box.cut(Part.makeBox(RAIL_GROOVE_D, dd - ry + 1.0, RAIL_GROOVE_H,
+                                   Vector(gx, ry, rz - RAIL_GROOVE_H / 2.0)))
+    return box
+
+
 def make_thumbscrew():
     knob = Part.makeCylinder(KNOB_D / 2.0, KNOB_H)
     # 그립 플루트 8개
@@ -494,6 +653,8 @@ def main():
     tier1, fr_t = fillet_front(make_tier1())
     # 윗면은 마감면(결합면 아님)이라 앞 모서리도 필렛 대상에 포함
     topmod, fr_top = fillet_front(make_top_module(), height=TOP_H + 1.0)
+    tier1d, fr_td = fillet_front(make_tier1(drawer=True))
+    drawer = make_drawer()
     lid = make_lid()          # 평판이라 필렛 없음 (윗면이 마감면)
     screw = make_thumbscrew()
 
@@ -505,6 +666,8 @@ def main():
     ok &= check("tier1.isValid", tier1.isValid())
     ok &= check("topmodule.isValid", topmod.isValid())
     ok &= check("lid.isValid", lid.isValid())
+    ok &= check("tier1-drawer.isValid", tier1d.isValid())
+    ok &= check("drawer.isValid", drawer.isValid())
     ok &= check("screw.isValid", screw.isValid())
 
     # (b) 바운딩박스 (테셀레이션 실측)
@@ -594,9 +757,62 @@ def main():
                     "2칸 %d개 / 3칸 %d개 (관통 기준, 벽당 동일)"
                     % (counts[2], counts[3]))
 
+    # --- 서랍 변형 검증 ---
+    g = drawer_bay_geometry()
+    rz = rail_z_local()
+    side = (g["bay_w"] - g["drawer_w"]) / 2.0
+    ok &= check("drawer fit", side >= 0.35 and DRAWER_V_CLEAR >= 0.45,
+                "좌우 각 %.2f · 상하 %.2fmm 여유 (서랍 %.1f×%.0f, 앞 %.1f→뒤 %.1f 쐐기)"
+                % (side, DRAWER_V_CLEAR, g["drawer_w"], g["drawer_d"],
+                   g["h_front"], g["h_rear"]))
+    stop = g["bay_d"] - g["drawer_d"]
+    ok &= check("drawer stop", stop >= 1.5,
+                "밀어 넣으면 뒷벽 %.1fmm 앞에서 멈춤" % stop)
+    ok &= check("pull opening",
+                PULL_W >= 28.0 and PULL_H >= 15.0
+                and rz - PULL_H / 2.0 > DRAWER_BOT_T,
+                "%.0f×%.0fmm, 중심 z=%.1f = 빈 서랍 무게중심 (모멘트 0)"
+                % (PULL_W, PULL_H, rz))
+    ok &= check("pull edge rounding", _DRAWER_INFO.get("pull_fillet", 0) > 0,
+                "개구 모서리 r%.1f (앞뒤 양면, 손가락 닿는 면)"
+                % _DRAWER_INFO.get("pull_fillet", 0))
+    rail_v = (RAIL_GROOVE_H - RAIL_RIB_H) / 2.0
+    rail_d = RAIL_GROOVE_D - RAIL_RIB_D
+    wall_left = DRAWER_WALL - RAIL_GROOVE_D + RAIL_PAD_T
+    ok &= check("rail fit",
+                rail_v >= 0.25 and rail_d >= 0.35 and wall_left >= 1.5,
+                "상하 각 %.2f · 깊이 %.2fmm 여유, 홈 뒤 서랍 벽 %.1fmm(보강 포함)"
+                % (rail_v, rail_d, wall_left))
+    travel = g["drawer_d"] - g["rail_y0"]
+    ok &= check("rail extent",
+                g["rail_y0"] > 5.0
+                and abs(g["rail_y0"] / g["drawer_d"] - RAIL_START) < 0.01,
+                "앞에서 %.0fmm 들어간 지점부터(앞면 노출 없음), 깊이의 %.0f%%가 안내 → %.0fmm 인출까지"
+                % (g["rail_y0"], (1 - RAIL_START) * 100, travel))
+    # 서랍 구간에는 타공이 없어야 한다 (본체) / 서랍 자체도 타공 없음
+    bay = (g["ceil_front"] + 3.0, TAN)
+    bay_holes = [c for c in perforation_cuts(TIER1_SLOTS, H,
+                                            bay_ceiling=bay).Solids
+                 if c.BoundBox.ZMin < bay[0] - TAN * c.BoundBox.YMax]
+    perf_r = PERF_D / 2.0
+    drawer_holes = [f for f in drawer.Faces
+                    if isinstance(f.Surface, Part.Cylinder)
+                    and abs(f.Surface.Radius - perf_r) < 0.1]
+    ok &= check("no perforation at drawer",
+                len(bay_holes) == 0 and len(drawer_holes) == 0,
+                "서랍 구간 본체 %d개 · 서랍 %d개" % (len(bay_holes),
+                                                len(drawer_holes)))
+    ok &= check("drawer volume", drawer.Volume > 0,
+                "서랍 재료 %.0fcm³, 내부 용적 약 %.0fcm³"
+                % (drawer.Volume / 1000.0,
+                   (g["drawer_w"] * g["drawer_d"]
+                    * (g["h_front"] + g["h_rear"]) / 2.0
+                    - drawer.Volume) / 1000.0))
+
     print("== 내보내기 ==")
     parts = [("module%d" % n, modules[n]) for n in MODULE_SLOTS]
-    parts += [("tier1", tier1), ("topmodule", topmod), ("lid", lid),
+    parts += [("tier1", tier1), ("tier1-drawer", tier1d),
+              ("drawer", drawer), ("topmodule", topmod), ("lid", lid),
               ("thumbscrew", screw)]
     objs = {}
     for name, shape in parts:
@@ -612,7 +828,8 @@ def main():
     # 문서 배치 (스크린샷용) — STL 내보내기 이후에만 적용해 출력물은
     # 원점을 유지한다. 위: 부품 나열, 오른쪽: 조립 상태.
     print("== 배치 ==")
-    row = (["tier1"] + ["module%d" % n for n in MODULE_SLOTS]
+    row = (["tier1", "tier1-drawer", "drawer"]
+           + ["module%d" % n for n in MODULE_SLOTS]
            + ["topmodule", "lid", "thumbscrew"])
     for i, name in enumerate(row):
         objs[name].Placement = App.Placement(
@@ -632,7 +849,12 @@ def main():
             ("asm_lid", lid, Vector(asm2_x, 0, H)),
             # 분해 뷰 — 뚜껑을 띄워 별개 부품임이 드러나게
             ("exp_module2", modules[2], Vector(asm2_x + W + LAYOUT_GAP, 0, 0)),
-            ("exp_lid", lid, Vector(asm2_x + W + LAYOUT_GAP, 0, H + 35.0))):
+            ("exp_lid", lid, Vector(asm2_x + W + LAYOUT_GAP, 0, H + 35.0)),
+            # 서랍을 절반 빼낸 분해 뷰
+            ("exp_tier1d", tier1d, Vector(asm2_x + 2 * (W + LAYOUT_GAP), 0, 0)),
+            ("exp_drawer", drawer,
+             Vector(asm2_x + 2 * (W + LAYOUT_GAP) + WALL + DRAWER_CLEAR,
+                    -55.0, BOT_T + DRAWER_V_CLEAR / 2.0))):
         o = doc.addObject("Part::Feature", name)
         o.Shape = shape
         o.Placement = App.Placement(pos, App.Rotation())

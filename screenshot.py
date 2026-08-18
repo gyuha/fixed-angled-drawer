@@ -20,6 +20,21 @@ SIZE = (1600, 1200)
 # 부품 색상 — 색은 GUI 속성(ViewObject)이라 헤드리스 pen_holder.py 에서는
 # 지정할 수 없다. 여기서 칠하고 문서를 저장해 FCStd 에도 남긴다.
 SCREW_COLOR = (0.80, 0.11, 0.11)   # 썸스크류: 빨강
+DRAWER_COLOR = (0.95, 0.95, 0.95)  # 서랍: 흰색 (완전 백색은 흰 배경에 묻혀 살짝 낮춤)
+
+
+def part_color(name):
+    """객체 이름 → 색. asm_/exp_ 접두어를 벗겨 부품 이름으로 판정한다.
+
+    'drawer'(서랍 부품)와 'tier1_drawer'(서랍 변형 본체)를 반드시 구분해야
+    하므로 부분 문자열이 아니라 접두어를 벗긴 정확 비교를 쓴다.
+    """
+    base = name.split("_", 1)[1] if name.startswith(("asm_", "exp_")) else name
+    if base == "drawer":
+        return DRAWER_COLOR
+    if "screw" in base:
+        return SCREW_COLOR
+    return None
 
 # 뷰 이름 → (표시 그룹, 카메라 메서드)
 # 그룹은 객체 이름 접두어로 고른다 — 부품이 늘어도 이 목록을 고칠 일이 없다.
@@ -41,12 +56,13 @@ def shoot():
     view = Gui.activeDocument().activeView()
     Gui.Selection.clearSelection()     # 선택 하이라이트(초록)가 찍히지 않게
 
-    # 썸스크류만 빨강 (나열·조립 뷰의 두 인스턴스 모두)
+    # 부품별 색 지정 (나열·조립·분해 뷰의 모든 인스턴스)
     for o in doc.Objects:
-        if "screw" in o.Name.lower():
-            o.ViewObject.ShapeColor = SCREW_COLOR
-            o.ViewObject.DiffuseColor = [SCREW_COLOR]
-            print("색상:", o.Name, "→ 빨강")
+        col = part_color(o.Name)
+        if col:
+            o.ViewObject.ShapeColor = col
+            o.ViewObject.DiffuseColor = [col]
+            print("색상:", o.Name, "→", "빨강" if col == SCREW_COLOR else "흰색")
 
     for name, group, cam in VIEWS:
         for o in doc.Objects:
