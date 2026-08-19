@@ -132,8 +132,9 @@ FreeCAD 파이썬 스크립트 하나(`pen_holder.py`)가 모든 부품을 파�
 ```
 pen_holder.py          모델 생성·검증·내보내기 (파라메트릭, 단일 소스)
 screenshot.py          FCStd → PNG 스크린샷 (FreeCAD GUI 필요)
-LICENSE                코드 라이센스 (MIT)
-LICENSE-MODELS         도면·모델 라이센스 (CC BY-SA 4.0)
+LICENSE                코드 라이센스 (PolyForm Noncommercial 1.0.0)
+LICENSE-MODELS         도면·모델 라이센스 (CC BY-NC-SA 4.0)
+COMMERCIAL.md          상업 이용 안내 (허용 범위·문의 방법)
 output/
   tier1.stl            1단 3칸 + 클램프
   module2.stl          적층 모듈 2칸
@@ -152,17 +153,19 @@ output-8cm/            폭 80mm 초기 버전 산출물 (보관용)
 
 ## 라이센스
 
-저장소에 성격이 다른 두 가지가 있어 각각 다른 라이센스를 적용합니다.
+**비상업적 이용은 무상, 상업적 이용은 별도 라이센스가 필요합니다.**
 
 | 대상 | 라이센스 | 파일 |
 |------|----------|------|
-| 소스 코드 (`pen_holder.py`, `screenshot.py`) | **MIT** | [LICENSE](LICENSE) |
-| 도면·모델 (`output/`, `output-8cm/`의 STL·FCStd·3MF·렌더) | **CC BY-SA 4.0** | [LICENSE-MODELS](LICENSE-MODELS) |
+| 소스 코드 (`pen_holder.py`, `screenshot.py`) | **PolyForm Noncommercial 1.0.0** | [LICENSE](LICENSE) |
+| 도면·모델 (`output/`, `output-8cm/`의 STL·FCStd·3MF·렌더) | **CC BY-NC-SA 4.0** | [LICENSE-MODELS](LICENSE-MODELS) |
 
-출력해서 쓰시는 것, 팔거나 개조하시는 것 모두 자유입니다. 다만 모델을 **변형해 배포할 때는 출처를 밝히고 동일한 CC BY-SA 4.0으로 공개**해 주세요.
+**자유롭게 하실 수 있는 것** — 개인·가정에서 쓰려고 출력하기, 친구에게 뽑아 무상으로 주기, 학교·도서관·메이커스페이스 등 교육·비영리 목적의 사용, 모델이나 스크립트를 고쳐서 비상업적으로 재배포하기(출처 표시 + 동일 조건 공개).
+
+**별도 라이센스가 필요한 것** — 출력물 판매, 유료 서비스·제품의 일부로 제공, 상업적 주문 제작, 양산 원형 사용. 자세한 경계와 문의 방법은 [COMMERCIAL.md](COMMERCIAL.md)를 보세요. 경계가 애매하면 이슈로 물어보시면 됩니다.
 
 ```
-"fixed-angled-drawer" by gyuha, licensed under CC BY-SA 4.0.
+"fixed-angled-drawer" by gyuha, licensed under CC BY-NC-SA 4.0.
 https://github.com/gyuha/fixed-angled-drawer
 ```
 
