@@ -33,9 +33,10 @@ H = 170.0           # 모듈 높이 (요구 사양 17cm, 전 부품 공통 — �
 TIER1_SLOTS = 3     # 1단(바닥 모듈) 칸 수
 MODULE_SLOTS = (2, 3)  # 적층 모듈 변형별 칸 수 → module2 / module3
 
-WALL = 3.0          # 측벽·뒷벽·앞벽 두께 (참고 STL 실측 ≈3mm)
-BOT_T = 4.0         # 바닥판 두께 (참고 STL 실측 ≈4mm)
-SHELF_T = 4.0       # 선반 수직 두께 (참고 STL 실측 ≈4mm)
+WALL = 2.4          # 측벽·뒷벽·앞벽 두께. 3.0에서 낮춰 재료 15% 절감
+                    # (스냅 물림·필렛은 유지 — 아래 'snap wall guard' 검증 참고)
+BOT_T = 3.0         # 바닥판 두께 (4.0에서 낮춤)
+SHELF_T = 3.0       # 선반 수직 두께 (4.0에서 낮춤)
 ANGLE = 20.0        # 선반 경사각(도) — 참고 STL 법선 실측
 LIP = 3.0           # 선반 앞 끝 위 낮은 턱 높이
 # 앞턱 뒷면을 수직 단차로 두면, 뒷면을 베드에 대고 출력할 때 아래를 향한
@@ -739,6 +740,12 @@ def main():
     engage = BUMP_D - CLEAR
     ok &= check("snap fit", 1.0 < engage < 3.0 and WIN_H - BUMP_H >= 0.3,
                 "돌기 물림 %.2fmm, 창 상하 여유 %.1fmm" % (engage, WIN_H - BUMP_H))
+    # 벽 두께 vs 스냅 돌기 — 벽을 더 얇게 하면 돌기가 벽을 관통하거나
+    # 캐치 물림이 사라진다. 조용히 깨지는 관계라 검증으로 고정한다.
+    eng = BUMP_D - CLEAR
+    ok &= check("snap wall guard", WALL - eng >= 0.5 and eng >= 1.0,
+                "돌기 물림 %.2fmm / 벽 %.1fmm → 관통 여유 %.2fmm (0.5 이상)"
+                % (eng, WALL, WALL - eng))
     # 앞쪽 필렛 적용 확인
     ok &= check("front fillet",
                 all(r > 0 for r in fillets.values()) and fr_t > 0
