@@ -17,16 +17,18 @@ FreeCAD 파이썬 스크립트 하나(`pen_holder.py`)가 모든 부품을 파�
 
 ![부품 8종](output/shot-parts-axo.png)
 
+**부품 파일은 변형 폴더 안에 있습니다** — 아래 표의 STL은 `output/<변형>/` 기준 파일명입니다. 어느 변형을 고를지는 [변형 선택](#변형-선택)을 보세요.
+
 | 부품 | STL | 높이 | 칸 수 | 역할 |
 |------|-----|------|-------|------|
-| 1단 (바닥 모듈) | `output/tier1.stl` | 170mm | 3칸 | 맨 아래. 뒷면에 책상 클램프 + 암나사 일체형 |
-| 1단 서랍형 | `output/tier1-drawer.stl` | 170mm | 위 2칸 + 서랍 1칸 | `tier1`의 최하단을 서랍으로 바꾼 변형. 클램프 동일 |
-| 서랍 | `output/drawer.stl` | 앞 87.5→뒤 52.9mm | — | `tier1-drawer` 전용. 쐐기 상자, 용적 약 350cm³ |
-| 적층 모듈 2칸 | `output/module2.stl` | 170mm | 2칸 (피치 85mm) | 긴 물건용 (자, 붓, 긴 가위) |
-| 적층 모듈 3칸 | `output/module3.stl` | 170mm | 3칸 (피치 56.7mm) | 촘촘한 분류용 (펜, 지우개, 클립) |
-| 마감 모듈 | `output/topmodule.stl` | 56.7mm | 바닥 없음 · 천장 일체 | 맨 위 마감용 한 부품. 윗면이 평평 |
-| 평판 뚜껑 | `output/lid.stl` | 3mm | — | 2칸·3칸 모듈 위를 그대로 덮는 별도 뚜껑 |
-| 썸스크류 | `output/thumbscrew.stl` | 59mm | — | 클램프 조임 나사 1개 |
+| 1단 (바닥 모듈) | `tier1.stl` | 170mm | 3칸 | 맨 아래. 뒷면에 책상 클램프 + 암나사 일체형 |
+| 1단 서랍형 | `tier1-drawer.stl` | 170mm | 위 2칸 + 서랍 1칸 | `tier1`의 최하단을 서랍으로 바꾼 변형. 클램프 동일 |
+| 서랍 | `drawer.stl` | 앞 87.5→뒤 52.9mm | — | `tier1-drawer` 전용. 쐐기 상자, 용적 약 350cm³ |
+| 적층 모듈 2칸 | `module2.stl` | 170mm | 2칸 (피치 85mm) | 긴 물건용 (자, 붓, 긴 가위) |
+| 적층 모듈 3칸 | `module3.stl` | 170mm | 3칸 (피치 56.7mm) | 촘촘한 분류용 (펜, 지우개, 클립) |
+| 마감 모듈 | `topmodule.stl` | 56.7mm | 바닥 없음 · 천장 일체 | 맨 위 마감용 한 부품. 윗면이 평평 |
+| 평판 뚜껑 | `lid.stl` | 3mm | — | 2칸·3칸 모듈 위를 그대로 덮는 별도 뚜껑 |
+| 썸스크류 | `thumbscrew.stl` | 59mm | — | 클램프 조임 나사 1개 |
 
 최소 구성은 `tier1`(또는 `tier1-drawer` + `drawer`) + `thumbscrew`이고, 원하는 높이만큼 `module2`/`module3`을 추가로 출력해 쌓습니다. **1단은 `tier1`과 `tier1-drawer` 중 하나만 고르면 됩니다** — 둘은 같은 자리에 들어가는 대체 부품입니다.
 
@@ -49,6 +51,21 @@ FreeCAD 파이썬 스크립트 하나(`pen_holder.py`)가 모든 부품을 파�
 
 > **⚠ 벽 두께 2.4mm판과 이전 3.0mm판은 섞어 쓸 수 없습니다.**
 > 벽 두께는 적층 인터페이스의 기준선이라, 3.0mm판 모듈을 2.4mm판 위에 올리면 스커트가 좌우 각 0.85mm 헐거워지고(기존 0.25mm) 스냅 물림이 1.55 → 0.95mm로 줄어 흔들립니다. 한 스택은 같은 버전으로만 구성하세요. 3.0mm판이 필요하면 `WALL = 3.0`, `BOT_T`·`SHELF_T = 4.0`으로 되돌려 재생성하면 됩니다.
+
+## 변형 선택
+
+루트에서 스크립트를 한 번 실행하면 **폭 × 두께 조합 4가지**가 각자의 폴더에 생성됩니다. 폴더명에 폭과 벽 두께가 들어 있어 파일만 받아도 어느 버전인지 알 수 있습니다.
+
+| 폴더 | 폭 | 벽 / 선반·바닥 | 세트 재료 (실측) | 언제 고르나 |
+|------|-----|----------------|------------------|-------------|
+| **`output/w70-wall2.4/`** | 70mm | 2.4 / 3.0mm | **511cm³ · 634g** | **기본 권장** — 가장 적게 들고 충분히 튼튼합니다 |
+| `output/w80-wall2.4/` | 80mm | 2.4 / 3.0mm | 548cm³ · 680g | 폭이 넓은 편을 원할 때 |
+| `output/w70-wall3.0/` | 70mm | 3.0 / 4.0mm | 601cm³ · 745g | 이미 3.0mm판을 쓰고 있어 섞어 써야 할 때 |
+| `output/w80-wall3.0/` | 80mm | 3.0 / 4.0mm | 646cm³ · 801g | 폭 80mm + 3.0mm판 |
+
+"세트"는 실사용 한 세트(1단서랍형 + 서랍 + 3칸 모듈 + 마감 모듈 + 썸스크류) 기준입니다.
+
+**한 스택은 같은 폴더의 부품으로만 구성하세요.** 벽 두께가 적층 인터페이스의 기준선이라 2.4mm판과 3.0mm판을 섞으면 흔들립니다(위 경고 참고). 폭이 다른 것끼리도 당연히 섞이지 않습니다.
 
 ## 치수 사양
 
@@ -124,7 +141,7 @@ FreeCAD 파이썬 스크립트 하나(`pen_holder.py`)가 모든 부품을 파�
 
 ```bash
 /Applications/BambuStudio.app/Contents/MacOS/BambuStudio \
-  --slice 0 --arrange 1 --outputdir /tmp/out --export-3mf /tmp/out/o.3mf output/module3.stl
+  --slice 0 --arrange 1 --outputdir /tmp/out --export-3mf /tmp/out/o.3mf output/w70-wall2.4/module3.stl
 grep -aE "estimated printing time|total filament length" /tmp/out/*.gcode
 ```
 
@@ -159,12 +176,12 @@ grep -aE "estimated printing time|total filament length" /tmp/out/*.gcode
 ```
 
 ```
-파라미터 수정 → freecadcmd pen_holder.py → 검증 32항목 → VERIFICATION PASS → STL·FCStd 출력
+파라미터 수정 → freecadcmd pen_holder.py → 변형 4종 × 전체 검증 → VERIFICATION PASS → 폴더별 STL·FCStd 출력
                                               ↓ 실패
                                         FAIL 항목 출력 (출력물 사용 금지)
 ```
 
-검증 항목은 유효 솔리드(8종), 바운딩박스, 마감 모듈 높이·바닥 개방·천장 일체, 나사·스냅 정합, **체결 가능 상판 두께**, 클램프 구멍 주변 재료, 앞턱 자기지지 각도, 앞면 필렛, 타공 배치, 그리고 서랍 관련 7가지(**끼움 여유·깊이 정지·개구 크기와 무게중심 정렬·개구 모서리 라운딩·레일 끼움·레일 구간·타공 0**), 그리고 **벽 두께 대비 스냅 물림 가드**까지 **32가지**입니다.
+검증 항목은 변형 파라미터 정합(`IN_D`), 유효 솔리드(8종), 바운딩박스, 마감 모듈 높이·바닥 개방·천장 일체, 나사·스냅 정합, 체결 가능 상판 두께, 클램프 구멍 주변 재료, 앞턱 자기지지 각도, 앞면 필렛, 타공 배치, 서랍 관련 7가지(끼움·깊이 정지·개구 크기와 무게중심 정렬·개구 모서리 라운딩·레일 끼움·레일 구간·타공 0), 벽 두께 대비 스냅 물림 가드입니다. **개수는 문서에 적지 않습니다** — 스크립트가 항목별로 PASS/FAIL을 찍고 마지막 줄에 종합 결과를 내므로 그 출력이 유일한 기준입니다.
 
 ### 주요 파라미터
 
@@ -191,28 +208,25 @@ grep -aE "estimated printing time|total filament length" /tmp/out/*.gcode
 ## 파일 구조
 
 ```
-pen_holder.py          모델 생성·검증·내보내기 (파라메트릭, 단일 소스)
-screenshot.py          FCStd → PNG 스크린샷 (FreeCAD GUI 필요)
+pen_holder.py          모델 생성·검증·내보내기 (파라메트릭, 단일 소스, 변형 4종 일괄)
+screenshot.py          기준 변형 FCStd → PNG 스크린샷 (FreeCAD GUI 필요)
 LICENSE                코드 라이센스 (PolyForm Noncommercial 1.0.0)
 LICENSE-MODELS         도면·모델 라이센스 (CC BY-NC-SA 4.0)
 COMMERCIAL.md          상업 이용 안내 (허용 범위·문의 방법)
 output/
-  tier1.stl            1단 3칸 + 클램프
-  tier1-drawer.stl     1단 서랍형 (최하단이 서랍 구간)
-  drawer.stl           서랍 (tier1-drawer 전용)
-  module2.stl          적층 모듈 2칸
-  module3.stl          적층 모듈 3칸
-  topmodule.stl        마감 모듈 (바닥 없음·천장 일체)
-  lid.stl              평판 뚜껑
-  thumbscrew.stl       썸스크류
-  pen_holder.FCStd     FreeCAD 문서 (부품 나열 뷰 + 조립 뷰 배치)
-  shot-*.png           스크린샷 5장 (부품·조립 3방향·분해도)
-output-8cm/            폭 80mm 초기 버전 산출물 (보관용)
+  shot-*.png           스크린샷 5장 (기준 변형 기준, 부품·조립 3방향·분해도)
+  w70-wall2.4/         ← 기준 변형
+    tier1.stl  tier1-drawer.stl  drawer.stl
+    module2.stl  module3.stl  topmodule.stl  lid.stl  thumbscrew.stl
+    pen_holder.FCStd   FreeCAD 문서 (부품 나열 뷰 + 조립 뷰 배치)
+  w80-wall2.4/         (같은 구성)
+  w70-wall3.0/         (같은 구성)
+  w80-wall3.0/         (같은 구성)
 ```
 
-`output-8cm/`은 폭 80mm였던 초기 버전의 산출물입니다. 실제로 출력해 보니 폭이 넓어 70mm로 줄였고, 8cm판이 필요하면 `W = 80.0`으로 되돌려 재생성하면 됩니다.
+폭 80mm판은 더 이상 별도 폴더(`output-8cm/`)로 두지 않고 변형(`w80-*`)으로 함께 생성됩니다.
 
-`output/*.stl`은 모두 원점 기준으로 내보내므로 슬라이서에 그대로 올리면 됩니다. `pen_holder.FCStd`의 부품 배치는 문서 안에서만 적용된 것이라 STL 좌표에 영향이 없습니다.
+각 변형 폴더의 `*.stl`은 모두 원점 기준으로 내보내므로 슬라이서에 그대로 올리면 됩니다. `pen_holder.FCStd`의 부품 배치는 문서 안에서만 적용된 것이라 STL 좌표에 영향이 없습니다.
 
 ## 라이센스
 
@@ -221,7 +235,7 @@ output-8cm/            폭 80mm 초기 버전 산출물 (보관용)
 | 대상 | 라이센스 | 파일 |
 |------|----------|------|
 | 소스 코드 (`pen_holder.py`, `screenshot.py`) | **PolyForm Noncommercial 1.0.0** | [LICENSE](LICENSE) |
-| 도면·모델 (`output/`, `output-8cm/`의 STL·FCStd·3MF·렌더) | **CC BY-NC-SA 4.0** | [LICENSE-MODELS](LICENSE-MODELS) |
+| 도면·모델 (`output/` 전체의 STL·FCStd·3MF·렌더) | **CC BY-NC-SA 4.0** | [LICENSE-MODELS](LICENSE-MODELS) |
 
 **자유롭게 하실 수 있는 것** — 개인·가정에서 쓰려고 출력하기, 친구에게 뽑아 무상으로 주기, 학교·도서관·메이커스페이스 등 교육·비영리 목적의 사용, 모델이나 스크립트를 고쳐서 비상업적으로 재배포하기(출처 표시 + 동일 조건 공개).
 

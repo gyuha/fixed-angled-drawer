@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""output/pen_holder.FCStd 의 뷰를 PNG로 저장 (FreeCAD GUI 필요).
+"""기준 변형(output/w70-wall2.4)의 FCStd 뷰를 PNG로 저장 (FreeCAD GUI 필요).
 
 실행:  /Applications/FreeCAD.app/Contents/MacOS/FreeCAD screenshot.py
 산출:  output/shot-<뷰이름>.png
@@ -14,7 +14,8 @@ import FreeCADGui as Gui
 from PySide import QtCore
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DOC = os.path.join(HERE, "output", "pen_holder.FCStd")
+REF_VARIANT = "w70-wall2.4"   # pen_holder.py 의 REF_VARIANT 와 일치
+DOC = os.path.join(HERE, "output", REF_VARIANT, "pen_holder.FCStd")
 SIZE = (1600, 1200)
 
 # 부품 색상 — 색은 GUI 속성(ViewObject)이라 헤드리스 pen_holder.py 에서는

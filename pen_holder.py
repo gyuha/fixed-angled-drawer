@@ -123,7 +123,36 @@ KNOB_D = 32.6       # 손잡이 지름 (실측)
 KNOB_H = 10.0       # 손잡이 높이 (실측)
 THR_CLEAR = 0.4     # 암나사 반경 공차
 
-OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+# --- 변형 (폭 × 두께 세트) ---
+# 한 번 실행하면 아래 네 조합이 각자의 폴더에 생성된다. 두께는 세트로 움직인다:
+# wall2.4 = 벽 2.4 / 선반·바닥 3.0 (현재), wall3.0 = 예전 두께 전체 복원.
+# 적층 호환을 결정하는 것은 벽 두께뿐이라 폴더명에는 폭과 벽 두께만 넣는다.
+VARIANTS = [
+    # (폴더명,          W,    WALL, BOT_T, SHELF_T)
+    ("w70-wall2.4",    70.0, 2.4,  3.0,   3.0),
+    ("w80-wall2.4",    80.0, 2.4,  3.0,   3.0),
+    ("w70-wall3.0",    70.0, 3.0,  4.0,   4.0),
+    ("w80-wall3.0",    80.0, 3.0,  4.0,   4.0),
+]
+REF_VARIANT = "w70-wall2.4"   # 렌더·문서의 기준 변형
+
+OUT_BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+OUT_DIR = os.path.join(OUT_BASE, REF_VARIANT)   # set_variant()가 변형마다 바꾼다
+
+
+def set_variant(folder, width, wall, bot_t, shelf_t):
+    """변형 파라미터와 그 파생 상수를 다시 세팅한다.
+
+    WALL 에서 파생되는 모듈 상수는 IN_D 하나뿐이고 W·BOT_T·SHELF_T 에서
+    파생되는 것은 없다(그릴링에서 확인). 그래도 놓치면 조용히 틀린 형상이
+    나오므로 main()에서 IN_D 정합을 검증한다.
+    """
+    global W, WALL, BOT_T, SHELF_T, IN_D, OUT_DIR
+    W, WALL, BOT_T, SHELF_T = width, wall, bot_t, shelf_t
+    IN_D = D - WALL
+    OUT_DIR = os.path.join(OUT_BASE, folder)
+    _SHELL.clear()          # 서랍 껍데기 캐시는 변형마다 무효
+    _DRAWER_INFO.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -642,9 +671,10 @@ class TightBB(object):
         self.ZLength = self.ZMax - self.ZMin
 
 
-def main():
+def build_one(folder):
+    """한 변형을 생성·검증·내보내기 한다. (ok, 세트 재료 cm³) 반환."""
     os.makedirs(OUT_DIR, exist_ok=True)
-    doc = App.newDocument("pen_holder")
+    doc = App.newDocument("pen_holder_" + folder.replace(".", "_").replace("-", "_"))
 
     print("== 부품 생성 ==")
     modules = {}
@@ -661,6 +691,10 @@ def main():
 
     ok = True
     print("== 검증 ==")
+    # 변형 전환에서 파생 상수를 놓치면 형상이 조용히 틀어진다
+    ok &= check("variant params", abs(IN_D - (D - WALL)) < 1e-9,
+                "폭 %.0f / 벽 %.1f / 선반 %.1f / 바닥 %.1f → IN_D %.1f"
+                % (W, WALL, SHELF_T, BOT_T, IN_D))
     # (a) 유효 솔리드
     for n in MODULE_SLOTS:
         ok &= check("module%d.isValid" % n, modules[n].isValid())
@@ -871,9 +905,36 @@ def main():
     fcstd = os.path.join(OUT_DIR, "pen_holder.FCStd")
     doc.saveAs(fcstd)
     print("FCStd:", fcstd)
+    App.closeDocument(doc.Name)
 
-    print("== 결과 ==")
+    # 실사용 세트 재료량 (변형이 실제로 반영됐는지 보는 증거)
+    set_parts = (tier1d, drawer, modules[3], topmod, screw)
+    set_vol = sum(p.Volume for p in set_parts) / 1000.0
+    print("세트 재료: %.1fcm³ (%.0fg)" % (set_vol, set_vol * 1.24))
     print("VERIFICATION", "PASS" if ok else "FAIL")
+    return ok, set_vol
+
+
+def main():
+    results = []
+    for folder, width, wall, bot_t, shelf_t in VARIANTS:
+        print("\n" + "=" * 62)
+        print("변형 %s — 폭 %.0f / 벽 %.1f / 선반·바닥 %.1f·%.1f"
+              % (folder, width, wall, shelf_t, bot_t))
+        print("=" * 62)
+        set_variant(folder, width, wall, bot_t, shelf_t)
+        ok, vol = build_one(folder)
+        results.append((folder, ok, vol))
+
+    print("\n" + "=" * 62)
+    print("== 변형별 결과 ==")
+    for folder, ok, vol in results:
+        print("  %-14s %s  세트 %6.1fcm³ (%4.0fg)"
+              % (folder, "PASS" if ok else "FAIL", vol, vol * 1.24))
+    vols = [round(v, 1) for _, _, v in results]
+    distinct = len(set(vols)) == len(vols)
+    print("  변형별 재료량이 서로 다름: %s" % ("예" if distinct else "아니오 — 확인 필요"))
+    print("VERIFICATION", "PASS" if all(o for _, o, _ in results) and distinct else "FAIL")
 
 
 main()
